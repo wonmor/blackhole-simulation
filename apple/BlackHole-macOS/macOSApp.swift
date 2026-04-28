@@ -26,6 +26,10 @@ struct BlackHoleMacApp: App {
                     PomodoroView(timer: pomodoro)
                         .padding(.horizontal, 8)
                 }
+                .sheet(isPresented: $controller.showAbout) {
+                    AboutSheet()
+                        .padding(.horizontal, 8)
+                }
         }
         .windowStyle(.hiddenTitleBar)
 

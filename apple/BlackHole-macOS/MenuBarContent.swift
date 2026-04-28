@@ -101,6 +101,12 @@ struct MenuBarContent: View {
 
         Button("About BlackHole") {
             controller.showAbout = true
+            // Bring the windowed scene up so the sheet has a host.
+            if controller.mode == .wallpaper {
+                controller.setMode(.windowed,
+                                   params: params,
+                                   subscription: subscription)
+            }
         }
         Button("Quit BlackHole") {
             NSApplication.shared.terminate(nil)

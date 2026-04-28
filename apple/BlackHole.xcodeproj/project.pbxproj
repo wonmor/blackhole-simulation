@@ -13,6 +13,7 @@
 		1F2844246F448800945F9A99 /* Gravitas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 228A3247AF1FD5E3C0B7DF90 /* Gravitas.swift */; };
 		2A223A3E46F20A1BEBC85384 /* PaywallSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94971C7B80C0B86890A7A823 /* PaywallSheet.swift */; };
 		2C931596D87616352F150863 /* PomodoroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3026567985814163C7FA34BF /* PomodoroView.swift */; };
+		3216A3C93A9B10077BD95A6C /* AboutSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AC73052E737148B60773EDA /* AboutSheet.swift */; };
 		452172F680ACEB66D2624295 /* QualityPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13CC2436F650CACEF9C12C44 /* QualityPreset.swift */; };
 		4A9F6307104030822CEB7FAE /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFFE7DD2F5FD94877794B512 /* Renderer.swift */; };
 		4B958B2B76DBD2133B376987 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA63F959520F6119D5606374 /* Assets.xcassets */; };
@@ -22,10 +23,12 @@
 		59B060E7778F6E712F54014D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 04C9180D828CD070A4EE8437 /* LaunchScreen.storyboard */; };
 		5ABE00F7E3B50DD51DA1CF53 /* AppController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 414ED71E960453A3B70A5632 /* AppController.swift */; };
 		5D3F7A2D3C635D755880BE7A /* MetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B07C58C81249192B2E4CC996 /* MetalView.swift */; };
+		6602CB2FC029B2F356975F94 /* Scenarios.swift in Sources */ = {isa = PBXBuildFile; fileRef = 385F1F323863C33A518CFC90 /* Scenarios.swift */; };
 		6A0A5D49DB5FA8110C617EAC /* MenuBarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91148CBE0EBE1FB5F544E907 /* MenuBarContent.swift */; };
 		6E122D544EA53EF9E3AA7B7D /* ControlPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA29C6AB0EA23F31509EF7AD /* ControlPanel.swift */; };
 		74C7FE6AF55575536DD6BFAE /* WallpaperOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 306AD48EBE39A6818CEF828F /* WallpaperOverlay.swift */; };
 		7AB2137D911BCED6C23F0DA9 /* MetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B07C58C81249192B2E4CC996 /* MetalView.swift */; };
+		7C6ED339F260D0390656376D /* AboutSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AC73052E737148B60773EDA /* AboutSheet.swift */; };
 		7E3C77BA3757E00CD5BA996B /* PomodoroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3026567985814163C7FA34BF /* PomodoroView.swift */; };
 		928D723A448C0FCE1E483F30 /* PomodoroTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C536C9AE14001F0686AEF34 /* PomodoroTimer.swift */; };
 		950AB0F930740072F42899F4 /* iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2063DC9DB076023B1EDB0B0B /* iOSApp.swift */; };
@@ -47,6 +50,7 @@
 		F35B3F8C56438C7665081A90 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 138CE173BF3D9CE425A1BA87 /* PrivacyInfo.xcprivacy */; };
 		F69ECF7C1E9B3B8CD6F79886 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA63F959520F6119D5606374 /* Assets.xcassets */; };
 		F82548E56AC34B875E8790B9 /* Gravitas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 228A3247AF1FD5E3C0B7DF90 /* Gravitas.swift */; };
+		FDEC3E7865D1BB5CB3B5AB7B /* Scenarios.swift in Sources */ = {isa = PBXBuildFile; fileRef = 385F1F323863C33A518CFC90 /* Scenarios.swift */; };
 		FF4B75BF7BF4EE823CF370B5 /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFFE7DD2F5FD94877794B512 /* Renderer.swift */; };
 /* End PBXBuildFile section */
 
@@ -62,6 +66,7 @@
 		23B9F74FA3C20F5E42CE28EC /* WallpaperManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperManager.swift; sourceTree = "<group>"; };
 		3026567985814163C7FA34BF /* PomodoroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PomodoroView.swift; sourceTree = "<group>"; };
 		306AD48EBE39A6818CEF828F /* WallpaperOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperOverlay.swift; sourceTree = "<group>"; };
+		385F1F323863C33A518CFC90 /* Scenarios.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scenarios.swift; sourceTree = "<group>"; };
 		414ED71E960453A3B70A5632 /* AppController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppController.swift; sourceTree = "<group>"; };
 		6B22B6FE2DEE0E1FAE3C5820 /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
 		74A591C534F0D81CB1BC28FD /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
@@ -71,6 +76,7 @@
 		91148CBE0EBE1FB5F544E907 /* MenuBarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarContent.swift; sourceTree = "<group>"; };
 		94971C7B80C0B86890A7A823 /* PaywallSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallSheet.swift; sourceTree = "<group>"; };
 		98202AB7F164C5CCC41EC1CE /* Postprocess.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Postprocess.metal; sourceTree = "<group>"; };
+		9AC73052E737148B60773EDA /* AboutSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutSheet.swift; sourceTree = "<group>"; };
 		ACC9B3C45605DEDD23F39963 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B07C58C81249192B2E4CC996 /* MetalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalView.swift; sourceTree = "<group>"; };
 		B26D95461A4C15AF94731790 /* BlackHole-iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "BlackHole-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -102,6 +108,7 @@
 		47C2261D0B2F8A80A4810AC6 /* BlackHole */ = {
 			isa = PBXGroup;
 			children = (
+				9AC73052E737148B60773EDA /* AboutSheet.swift */,
 				EA63F959520F6119D5606374 /* Assets.xcassets */,
 				FD327117E66302BD38F7AEAD /* BlackHoleParameters.swift */,
 				8516951A35DF5BAC2068FF56 /* ContentView.swift */,
@@ -112,6 +119,7 @@
 				0C536C9AE14001F0686AEF34 /* PomodoroTimer.swift */,
 				3026567985814163C7FA34BF /* PomodoroView.swift */,
 				13CC2436F650CACEF9C12C44 /* QualityPreset.swift */,
+				385F1F323863C33A518CFC90 /* Scenarios.swift */,
 				74A591C534F0D81CB1BC28FD /* SubscriptionManager.swift */,
 				EE0243FD634828B9D98A5EB1 /* Bridge */,
 				CFF8C219330AA312FC5ED1C6 /* Renderer */,
@@ -288,6 +296,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7C6ED339F260D0390656376D /* AboutSheet.swift in Sources */,
 				00935CDF786709284DA0BF1B /* BlackHole.metal in Sources */,
 				C33C634C057A0EBBB885FD3A /* BlackHoleParameters.swift in Sources */,
 				CDF59D713DF376322D3589E3 /* ContentView.swift in Sources */,
@@ -301,6 +310,7 @@
 				A839DE4408696F05787165D2 /* Postprocess.metal in Sources */,
 				E83EE384723E7716CC405079 /* QualityPreset.swift in Sources */,
 				4A9F6307104030822CEB7FAE /* Renderer.swift in Sources */,
+				FDEC3E7865D1BB5CB3B5AB7B /* Scenarios.swift in Sources */,
 				145116860D5A26CEE03394A8 /* SubscriptionManager.swift in Sources */,
 				C731A45B2ED2610D29CC4234 /* WallpaperSaver.swift in Sources */,
 				950AB0F930740072F42899F4 /* iOSApp.swift in Sources */,
@@ -311,6 +321,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3216A3C93A9B10077BD95A6C /* AboutSheet.swift in Sources */,
 				5ABE00F7E3B50DD51DA1CF53 /* AppController.swift in Sources */,
 				DEA1611520F03C045CFDD434 /* BlackHole.metal in Sources */,
 				DED631FFEF28D2F74E076767 /* BlackHoleParameters.swift in Sources */,
@@ -326,6 +337,7 @@
 				5272AD76B4E1584C99F12A27 /* Postprocess.metal in Sources */,
 				452172F680ACEB66D2624295 /* QualityPreset.swift in Sources */,
 				FF4B75BF7BF4EE823CF370B5 /* Renderer.swift in Sources */,
+				6602CB2FC029B2F356975F94 /* Scenarios.swift in Sources */,
 				97436CB8650F976ABA7AEF25 /* SubscriptionManager.swift in Sources */,
 				57BBC2DDBF369F88A3613FF1 /* WallpaperManager.swift in Sources */,
 				74C7FE6AF55575536DD6BFAE /* WallpaperOverlay.swift in Sources */,

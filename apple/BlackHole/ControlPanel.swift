@@ -14,6 +14,13 @@ struct ControlPanel: View {
     var onPomodoroTap: () -> Void = {}
     /// iOS-only "Save as Wallpaper" handler. nil → button hidden.
     var onWallpaperSaveTap: (() -> Void)? = nil
+    /// macOS-only "Set/Stop Live Wallpaper" handler. nil → button hidden.
+    var onLiveWallpaperToggle: (() -> Void)? = nil
+    /// macOS-only state — true if wallpaper mode is currently active.
+    /// Drives the button label / icon.
+    var liveWallpaperActive: Bool = false
+    /// Tapped on the header info button.
+    var onAboutTap: () -> Void = {}
 
     // Section expand/collapse state
     @State private var openGeometry = true
@@ -22,6 +29,7 @@ struct ControlPanel: View {
     @State private var openCamera = true
     @State private var openEffects = false
     @State private var openTools = true
+    @State private var openScenarios = true
 
     private let cyan = Color(red: 0.55, green: 0.95, blue: 1.0)
 
@@ -55,6 +63,17 @@ struct ControlPanel: View {
             }
 
             section(title: "Tools", isOpen: $openTools) {
+                if let onLiveWallpaperToggle = onLiveWallpaperToggle {
+                    toolButton(
+                        label: liveWallpaperActive ? "Stop Live Wallpaper" : "Set as Live Wallpaper",
+                        sub: liveWallpaperActive
+                             ? "Currently rendering on your desktop"
+                             : "Renders behind windows + desktop icons",
+                        icon: liveWallpaperActive ? "stop.circle" : "rectangle.on.rectangle",
+                        locked: !subscription.isProUnlocked && !liveWallpaperActive
+                    ) { onLiveWallpaperToggle() }
+                }
+
                 toolButton(
                     label: "Pomodoro",
                     sub: pomodoroSubtitle,
@@ -117,20 +136,31 @@ struct ControlPanel: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(cyan)
             Spacer()
-            Button {
-                withAnimation(.easeInOut(duration: 0.15)) { resetToDefaults() }
-            } label: {
-                Image(systemName: "arrow.counterclockwise")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.65))
-                    .padding(6)
-                    .background(Circle().fill(Color.white.opacity(0.06)))
-                    .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.6))
+            HStack(spacing: 6) {
+                headerIconButton(symbol: "info") {
+                    onAboutTap()
+                }
+                .help("About BlackHole")
+                headerIconButton(symbol: "arrow.counterclockwise") {
+                    withAnimation(.easeInOut(duration: 0.15)) { resetToDefaults() }
+                }
+                .help("Reset to defaults")
             }
-            .buttonStyle(.plain)
-            .help("Reset to defaults")
         }
         .padding(.top, 16)
+    }
+
+    @ViewBuilder
+    private func headerIconButton(symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.white.opacity(0.65))
+                .padding(6)
+                .background(Circle().fill(Color.white.opacity(0.06)))
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.6))
+        }
+        .buttonStyle(.plain)
     }
 
     private var qualityPicker: some View {
@@ -243,7 +273,16 @@ struct ControlPanel: View {
 
     // MARK: - Reset
 
+    /// Wipes every persisted setting (params + Pomodoro durations + Pomodoro
+    /// session count). Cosmetic toggles like the dev-Pro override and any
+    /// in-flight subscription state are deliberately preserved.
     private func resetToDefaults() {
+        // Pomodoro back to factory durations + clear stats.
+        pomodoro.workMinutes = 25
+        pomodoro.shortBreakMinutes = 5
+        pomodoro.longBreakMinutes = 15
+        pomodoro.sessionsBeforeLongBreak = 4
+        pomodoro.reset()
         params.mass = 1.0
         params.spin = 0.5
         params.lensingStrength = 0.7
@@ -323,6 +362,43 @@ struct ControlPanel: View {
     private var pomodoroSubtitle: String {
         if pomodoro.phase == .idle { return "Focus timer · 25 min default" }
         return "\(pomodoro.phase.label) · \(pomodoro.formattedTime)"
+    }
+
+    @ViewBuilder
+    private func scenarioCard(_ sc: Scenario) -> some View {
+        Button {
+            sc.apply(to: params)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: sc.symbol)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(cyan.opacity(0.85))
+                    .frame(width: 22)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(sc.displayName)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white.opacity(0.95))
+                    Text(sc.subtitle)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.55))
+                }
+                Spacer()
+                Image(systemName: "arrow.right.circle")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.white.opacity(0.45))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(Color.white.opacity(0.04))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.10), lineWidth: 0.6)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 

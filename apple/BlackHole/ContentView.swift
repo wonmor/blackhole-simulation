@@ -7,7 +7,12 @@ struct ContentView: View {
 
     @State private var showControls: Bool = false
     @State private var showPomodoro: Bool = false
+    @State private var showAbout: Bool = false
     @State private var wallpaperToast: String? = nil
+
+    #if os(macOS)
+    @EnvironmentObject private var controller: AppController
+    #endif
 
     // Pinch-zoom state
     @State private var zoomBaseline: Float = 100.0
@@ -74,6 +79,10 @@ struct ContentView: View {
         .sheet(isPresented: $subscription.requestPaywall) {
             PaywallSheet(subscription: subscription)
         }
+        .sheet(isPresented: $showAbout) {
+            AboutSheet()
+                .padding(.horizontal, 8)
+        }
         .alert("Wallpaper", isPresented: wallpaperToastBinding, actions: {
             Button("OK", role: .cancel) { wallpaperToast = nil }
         }, message: {
@@ -113,7 +122,10 @@ struct ContentView: View {
                     subscription: subscription,
                     pomodoro: pomodoro,
                     onPomodoroTap: { showPomodoro = true },
-                    onWallpaperSaveTap: wallpaperSaveAction
+                    onWallpaperSaveTap: wallpaperSaveAction,
+                    onLiveWallpaperToggle: liveWallpaperToggleAction,
+                    liveWallpaperActive: liveWallpaperActive,
+                    onAboutTap: { showAbout = true }
                 )
                 .transition(.move(edge: .trailing).combined(with: .opacity))
             }
@@ -148,6 +160,24 @@ struct ContentView: View {
     private var wallpaperToastBinding: Binding<Bool> {
         Binding(get: { wallpaperToast != nil },
                 set: { if !$0 { wallpaperToast = nil } })
+    }
+
+    private var liveWallpaperToggleAction: (() -> Void)? {
+        #if os(macOS)
+        return {
+            controller.toggleMode(params: params, subscription: subscription)
+        }
+        #else
+        return nil
+        #endif
+    }
+
+    private var liveWallpaperActive: Bool {
+        #if os(macOS)
+        return controller.mode == .wallpaper
+        #else
+        return false
+        #endif
     }
 }
 
