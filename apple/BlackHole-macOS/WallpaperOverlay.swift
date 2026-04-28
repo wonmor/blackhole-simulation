@@ -58,35 +58,50 @@ struct WallpaperOverlay: View {
     // MARK: - Expired
 
     private var expiredCTA: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "circle.dashed")
-                .font(.system(size: 44, weight: .semibold))
-                .foregroundColor(cyan)
+        VStack(spacing: 22) {
+            Image(systemName: "circle.dotted")
+                .font(.system(size: 32, weight: .ultraLight))
+                .foregroundColor(cyan.opacity(0.85))
 
-            Text("Subscribe to BlackHole Pro")
-                .font(.system(size: 32, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
+            VStack(spacing: 14) {
+                Text("SUBSCRIBE TO BLACKHOLE PRO")
+                    .font(.system(size: 30, weight: .ultraLight))
+                    .tracking(7)
+                    .foregroundColor(.white.opacity(0.95))
 
-            Text("Trial expired — click anywhere to continue.")
-                .font(.system(size: 14, design: .rounded))
-                .foregroundColor(.white.opacity(0.65))
+                Rectangle()
+                    .fill(Color.white.opacity(0.18))
+                    .frame(width: 64, height: 1)
 
-            HStack(spacing: 8) {
-                Tag("Live wallpaper", icon: "sparkles")
-                Tag("Multi-display",  icon: "square.grid.2x2")
-                Tag("Mouse parallax", icon: "cursorarrow.motionlines")
+                VStack(spacing: 4) {
+                    Text("TRIAL EXPIRED")
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .tracking(3.5)
+                        .foregroundColor(cyan.opacity(0.85))
+                    Text("Click anywhere to continue")
+                        .font(.system(size: 12, weight: .light))
+                        .tracking(0.5)
+                        .foregroundColor(.white.opacity(0.55))
+                }
             }
-            .padding(.top, 6)
+
+            HStack(spacing: 10) {
+                Tag("LIVE WALLPAPER", icon: "sparkles")
+                Tag("MULTI-DISPLAY",  icon: "square.grid.2x2")
+                Tag("MOUSE PARALLAX", icon: "cursorarrow.motionlines")
+            }
+            .padding(.top, 4)
         }
-        .padding(40)
+        .padding(.horizontal, 56)
+        .padding(.vertical, 44)
         .background(
             ZStack {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
                     .fill(Color.black.opacity(0.55))
             }
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
                         colors: [Color.white.opacity(0.20), Color.white.opacity(0.04)],
@@ -107,22 +122,19 @@ struct WallpaperOverlay: View {
         private let cyan = Color(red: 0.55, green: 0.95, blue: 1.0)
 
         var body: some View {
-            HStack(spacing: 5) {
+            HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 8, weight: .light))
                 Text(label)
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .tracking(0.4)
+                    .font(.system(size: 9, weight: .light))
+                    .tracking(2.0)
             }
-            .foregroundColor(cyan)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 4)
-            .background(
-                Capsule(style: .continuous).fill(cyan.opacity(0.14))
-            )
+            .foregroundColor(cyan.opacity(0.85))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
             .overlay(
                 Capsule(style: .continuous)
-                    .strokeBorder(cyan.opacity(0.45), lineWidth: 0.6)
+                    .strokeBorder(cyan.opacity(0.30), lineWidth: 0.6)
             )
         }
     }

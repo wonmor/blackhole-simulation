@@ -39,7 +39,13 @@ struct MetalView: PlatformViewRepresentable {
         }
         view.device = device
         view.colorPixelFormat = .bgra8Unorm
+        // Framebuffer-only false on iOS so WallpaperSaver can blit from the
+        // drawable texture into a staging texture for Photos export.
+        #if os(iOS)
+        view.framebufferOnly = false
+        #else
         view.framebufferOnly = true
+        #endif
         view.preferredFramesPerSecond = 60
         view.isPaused = false
         view.enableSetNeedsDisplay = false
@@ -49,6 +55,10 @@ struct MetalView: PlatformViewRepresentable {
         coordinator.renderer = renderer
         coordinator.view = view
         view.delegate = renderer
+
+        #if os(iOS)
+        WallpaperSaver.shared.mtkView = view
+        #endif
     }
 
     private func updateMTKView(_ view: MTKView, coordinator: Coordinator) {
