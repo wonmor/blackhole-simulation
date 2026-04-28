@@ -51,6 +51,14 @@ struct MenuBarContent: View {
             }
         } else {
             Button("Subscribe to Pro…") {
+                // Sheet is bound to the main window; if we're in wallpaper
+                // mode the main window is hidden, so flip back first so the
+                // sheet has somewhere to render.
+                if controller.mode == .wallpaper {
+                    controller.setMode(.windowed,
+                                       params: params,
+                                       subscription: subscription)
+                }
                 controller.requestPaywall = true
             }
         }

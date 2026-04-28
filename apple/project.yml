@@ -45,7 +45,7 @@ targets:
         ITSAppUsesNonExemptEncryption: false
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.orchestrsim.blackholesim.ios
+        PRODUCT_BUNDLE_IDENTIFIER: com.orchestrsim.blackholesim
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: NO
         MTL_ENABLE_DEBUG_INFO: INCLUDE_SOURCE
@@ -71,7 +71,7 @@ targets:
         LSApplicationCategoryType: public.app-category.entertainment
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.orchestrsim.blackholesim.mac
+        PRODUCT_BUNDLE_IDENTIFIER: com.orchestrsim.blackholesim
         GENERATE_INFOPLIST_FILE: NO
         MTL_ENABLE_DEBUG_INFO: INCLUDE_SOURCE
         MTL_FAST_MATH: YES

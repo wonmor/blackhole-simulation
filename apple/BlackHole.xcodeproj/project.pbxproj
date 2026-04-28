@@ -23,6 +23,7 @@
 		5D3F7A2D3C635D755880BE7A /* MetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B07C58C81249192B2E4CC996 /* MetalView.swift */; };
 		6A0A5D49DB5FA8110C617EAC /* MenuBarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91148CBE0EBE1FB5F544E907 /* MenuBarContent.swift */; };
 		6E122D544EA53EF9E3AA7B7D /* ControlPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA29C6AB0EA23F31509EF7AD /* ControlPanel.swift */; };
+		74C7FE6AF55575536DD6BFAE /* WallpaperOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 306AD48EBE39A6818CEF828F /* WallpaperOverlay.swift */; };
 		7AB2137D911BCED6C23F0DA9 /* MetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B07C58C81249192B2E4CC996 /* MetalView.swift */; };
 		950AB0F930740072F42899F4 /* iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2063DC9DB076023B1EDB0B0B /* iOSApp.swift */; };
 		95C9B85C8CFD1214BC42B11E /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8516951A35DF5BAC2068FF56 /* ContentView.swift */; };
@@ -50,6 +51,7 @@
 		2063DC9DB076023B1EDB0B0B /* iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSApp.swift; sourceTree = "<group>"; };
 		228A3247AF1FD5E3C0B7DF90 /* Gravitas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gravitas.swift; sourceTree = "<group>"; };
 		23B9F74FA3C20F5E42CE28EC /* WallpaperManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperManager.swift; sourceTree = "<group>"; };
+		306AD48EBE39A6818CEF828F /* WallpaperOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperOverlay.swift; sourceTree = "<group>"; };
 		414ED71E960453A3B70A5632 /* AppController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppController.swift; sourceTree = "<group>"; };
 		6B22B6FE2DEE0E1FAE3C5820 /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
 		849B99F2EC97F172378FC398 /* PaywallSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallSheet.swift; sourceTree = "<group>"; };
@@ -162,6 +164,7 @@
 				ACC9B3C45605DEDD23F39963 /* PrivacyInfo.xcprivacy */,
 				ADBFAA2E6448FE82BD80E21B /* SubscriptionManager.swift */,
 				23B9F74FA3C20F5E42CE28EC /* WallpaperManager.swift */,
+				306AD48EBE39A6818CEF828F /* WallpaperOverlay.swift */,
 			);
 			path = "BlackHole-macOS";
 			sourceTree = "<group>";
@@ -305,6 +308,7 @@
 				FF4B75BF7BF4EE823CF370B5 /* Renderer.swift in Sources */,
 				107CDB0B17FE87B951D085F5 /* SubscriptionManager.swift in Sources */,
 				57BBC2DDBF369F88A3613FF1 /* WallpaperManager.swift in Sources */,
+				74C7FE6AF55575536DD6BFAE /* WallpaperOverlay.swift in Sources */,
 				D8C7C6A2311B938EBE7A50D6 /* macOSApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -325,7 +329,7 @@
 				);
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.orchestrsim.blackholesim.ios;
+				PRODUCT_BUNDLE_IDENTIFIER = com.orchestrsim.blackholesim;
 				SDKROOT = iphoneos;
 				SWIFT_OBJC_BRIDGING_HEADER = "BlackHole/Shared/BlackHole-Bridging-Header.h";
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -347,7 +351,7 @@
 				);
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.orchestrsim.blackholesim.mac;
+				PRODUCT_BUNDLE_IDENTIFIER = com.orchestrsim.blackholesim;
 				SDKROOT = macosx;
 				SWIFT_OBJC_BRIDGING_HEADER = "BlackHole/Shared/BlackHole-Bridging-Header.h";
 			};
@@ -366,7 +370,7 @@
 				);
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.orchestrsim.blackholesim.ios;
+				PRODUCT_BUNDLE_IDENTIFIER = com.orchestrsim.blackholesim;
 				SDKROOT = iphoneos;
 				SWIFT_OBJC_BRIDGING_HEADER = "BlackHole/Shared/BlackHole-Bridging-Header.h";
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -388,7 +392,7 @@
 				);
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.orchestrsim.blackholesim.mac;
+				PRODUCT_BUNDLE_IDENTIFIER = com.orchestrsim.blackholesim;
 				SDKROOT = macosx;
 				SWIFT_OBJC_BRIDGING_HEADER = "BlackHole/Shared/BlackHole-Bridging-Header.h";
 			};

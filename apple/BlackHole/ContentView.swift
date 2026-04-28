@@ -8,11 +8,18 @@ struct ContentView: View {
     @State private var zoomBaseline: Float = 100.0
     @State private var pinching: Bool = false
 
+    // Window focus — when the app loses focus, pause the simulation and
+    // blur the rendered frame to save GPU. Refocusing resumes immediately.
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var hostFocused: Bool = true
+
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                MetalView(params: params)
+                MetalView(params: params, paused: !hostFocused)
                     .ignoresSafeArea()
+                    .blur(radius: hostFocused ? 0 : 18, opaque: true)
+                    .animation(.easeInOut(duration: 0.18), value: hostFocused)
                     .gesture(
                         SimultaneousGesture(
                             DragGesture(minimumDistance: 0)
@@ -55,6 +62,17 @@ struct ContentView: View {
             }
         }
         .background(Color.black)
+        .onChange(of: scenePhase) { _, phase in
+            hostFocused = (phase == .active)
+        }
+        #if os(macOS)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
+            hostFocused = false
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            hostFocused = true
+        }
+        #endif
     }
 
     @ViewBuilder

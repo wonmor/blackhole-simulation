@@ -17,6 +17,9 @@ struct BlackHoleMacApp: App {
                 .sheet(isPresented: $controller.requestPaywall) {
                     PaywallSheet(subscription: subscription)
                 }
+                .task {
+                    controller.bind(subscription: subscription, params: params)
+                }
         }
         .windowStyle(.hiddenTitleBar)
 

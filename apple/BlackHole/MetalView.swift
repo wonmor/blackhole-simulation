@@ -22,9 +22,13 @@ final class ScrollableMTKView: MTKView {
 
 struct MetalView: PlatformViewRepresentable {
     @ObservedObject var params: BlackHoleParameters
+    /// When true, the renderer's MTKView is paused — saves GPU when the
+    /// host window loses focus or the app is backgrounded.
+    var paused: Bool = false
 
     final class Coordinator {
         var renderer: Renderer?
+        weak var view: MTKView?
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -43,11 +47,13 @@ struct MetalView: PlatformViewRepresentable {
 
         let renderer = Renderer(mtkView: view, params: params)
         coordinator.renderer = renderer
+        coordinator.view = view
         view.delegate = renderer
     }
 
     private func updateMTKView(_ view: MTKView, coordinator: Coordinator) {
         coordinator.renderer?.params = params
+        view.isPaused = paused
     }
 
     #if os(macOS)

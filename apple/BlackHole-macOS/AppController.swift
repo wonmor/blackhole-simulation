@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 enum AppMode {
@@ -6,12 +7,13 @@ enum AppMode {
     case wallpaper
 }
 
-/// App-level state for macOS: switches between the windowed simulator
-/// and the live-wallpaper mode. Owns the `WallpaperManager`.
+/// App-level state for macOS: switches between the windowed simulator and
+/// the live-wallpaper mode. Owns the `WallpaperManager` and orchestrates
+/// the 90-second free-preview hybrid paywall flow.
 ///
-/// Subscription gating is enforced here — attempting to enter wallpaper
-/// mode without `isProUnlocked` raises `requestPaywall = true`, which
-/// the menu-bar UI uses to present the paywall sheet.
+///   * Pro user                       → wallpaper mode permitted indefinitely
+///   * Free user, preview .available  → 90s preview, then auto-expire to paywall
+///   * Free user, preview .expired    → paywall sheet immediately
 @MainActor
 final class AppController: ObservableObject {
 
@@ -20,25 +22,61 @@ final class AppController: ObservableObject {
     @Published var showAbout: Bool = false
 
     let wallpaper: WallpaperManager
+    private var cancellables = Set<AnyCancellable>()
 
     init() {
         self.wallpaper = WallpaperManager()
+    }
+
+    /// Forwards subscription state changes (preview expiry) into mode changes.
+    /// Idempotent — safe to call from `.task` even if SwiftUI re-fires it.
+    func bind(subscription: SubscriptionManager, params: BlackHoleParameters) {
+        cancellables.removeAll()
+        subscription.$previewState
+            .removeDuplicates()
+            .sink { [weak self] state in
+                guard let self = self else { return }
+                if state == .expired && self.mode == .wallpaper {
+                    self.wallpaper.markPreviewExpired()
+                    // Clicking the wallpaper now exits to windowed + paywall.
+                    self.wallpaper.onExpiredClick = { [weak self] in
+                        Task { @MainActor in
+                            self?.setMode(.windowed,
+                                          params: params,
+                                          subscription: subscription)
+                            self?.requestPaywall = true
+                        }
+                    }
+                }
+            }
+            .store(in: &cancellables)
     }
 
     func setMode(_ newMode: AppMode,
                  params: BlackHoleParameters,
                  subscription: SubscriptionManager) {
         if newMode == mode { return }
-        if newMode == .wallpaper && !subscription.isProUnlocked {
-            requestPaywall = true
-            return
-        }
-        mode = newMode
-        switch newMode {
-        case .wallpaper:
-            wallpaper.start(params: params)
+
+        if newMode == .wallpaper {
+            if !subscription.isProUnlocked {
+                switch subscription.previewState {
+                case .available:
+                    subscription.startPreview()
+                    // Fall through to enter wallpaper mode.
+                case .running:
+                    // Already in preview but not in wallpaper? Just enter.
+                    break
+                case .expired:
+                    // No more free time. Show paywall and stay in windowed.
+                    requestPaywall = true
+                    return
+                }
+            }
+            mode = .wallpaper
+            wallpaper.start(params: params, subscription: subscription)
             hideMainWindows()
-        case .windowed:
+        } else {
+            mode = .windowed
             wallpaper.stop()
             showMainWindows()
         }
@@ -51,9 +89,6 @@ final class AppController: ObservableObject {
 
     // MARK: - Main window plumbing
 
-    /// Heuristic: hide every visible NSWindow that the SwiftUI WindowGroup
-    /// owns (titled, has a content controller, can become main). Skips
-    /// wallpaper windows (we manage those separately) and menu-bar panels.
     private func hideMainWindows() {
         for window in NSApplication.shared.windows where isUserWindow(window) {
             window.orderOut(nil)
@@ -66,12 +101,8 @@ final class AppController: ObservableObject {
             window.makeKeyAndOrderFront(nil)
             anyShown = true
         }
-        // If SwiftUI never created the window, ask AppKit to send the
-        // standard "show main window" action — WindowGroup hooks it.
         if !anyShown {
-            NSApplication.shared.sendAction(
-                Selector(("showSwiftUIWindow:")), to: nil, from: nil
-            )
+            NSApplication.shared.activate(ignoringOtherApps: true)
         }
     }
 

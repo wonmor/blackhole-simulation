@@ -17,11 +17,21 @@ final class SubscriptionManager: ObservableObject {
     @Published private(set) var isLoadingProducts: Bool = false
     @Published var lastError: String?
 
-    /// Auto-renewing subscription product IDs. Register these in App Store
-    /// Connect (Mac App). Pricing tiers are set there, not in code.
+    /// Hybrid free-trial: 90 seconds of live wallpaper per app launch.
+    @Published private(set) var previewState: PreviewState = .available
+    @Published private(set) var previewSecondsRemaining: TimeInterval = SubscriptionManager.previewTotalSeconds
+    static let previewTotalSeconds: TimeInterval = 90.0
+    private var previewTimer: Timer?
+
+    enum PreviewState { case available, running, expired }
+
+    /// Auto-renewing subscription product IDs. Platform-neutral (no `.ios` /
+    /// `.mac` suffix) because we ship under Universal Purchase — a single App
+    /// Store record covers iOS + iPadOS + macOS, and one purchase entitles the
+    /// user across every platform.
     static let productIDs: [String] = [
-        "com.orchestrsim.blackholesim.mac.pro_monthly",
-        "com.orchestrsim.blackholesim.mac.pro_yearly",
+        "com.orchestrsim.blackholesim.pro_monthly",
+        "com.orchestrsim.blackholesim.pro_yearly",
     ]
 
     private static let devOverrideKey = "dev_pro_override"
@@ -97,6 +107,37 @@ final class SubscriptionManager: ObservableObject {
         UserDefaults.standard.set(!cur, forKey: Self.devOverrideKey)
         Task { await refreshEntitlements() }
     }
+
+    // MARK: - Free-trial preview
+
+    /// Starts the 90-second free preview. No-op if not in `.available` state.
+    func startPreview() {
+        guard previewState == .available else { return }
+        previewState = .running
+        previewSecondsRemaining = Self.previewTotalSeconds
+        previewTimer?.invalidate()
+        previewTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] timer in
+            Task { @MainActor in
+                guard let self = self else { timer.invalidate(); return }
+                self.previewSecondsRemaining = max(0, self.previewSecondsRemaining - 0.5)
+                if self.previewSecondsRemaining <= 0 {
+                    self.expirePreview()
+                }
+            }
+        }
+    }
+
+    /// Marks the preview expired. Called on timer end or manual cancel.
+    func expirePreview() {
+        previewTimer?.invalidate()
+        previewTimer = nil
+        if previewState == .running {
+            previewState = .expired
+        }
+    }
+
+    /// Convenience: a true running preview that hasn't expired.
+    var isPreviewActive: Bool { previewState == .running }
 
     // MARK: - Internal
 
