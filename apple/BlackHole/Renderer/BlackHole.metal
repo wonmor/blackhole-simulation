@@ -13,9 +13,16 @@
 using namespace metal;
 
 constant float PI       = 3.14159265359;
-constant float MAX_DIST = 100.0;
-constant float MIN_STEP = 0.05;
-constant float MAX_STEP = 2.0;
+// Mirrors PHYSICS_CONSTANTS from src/configs/physics.config.ts
+constant float MAX_DIST          = 10000.0;  // rayMarching.maxDistance
+constant float MIN_STEP          = 0.01;     // rayMarching.minStep
+constant float MAX_STEP          = 1.2;      // rayMarching.maxStep
+constant float HORIZON_THRESHOLD = 1.15;     // rayMarching.horizonThreshold
+constant float DISK_HEIGHT_MULT  = 0.45;     // accretion.diskHeightMultiplier
+constant float DISK_TURB_SCALE   = 0.75;     // accretion.turbulenceScale
+constant float DISK_TURB_DETAIL  = 2.5;      // accretion.turbulenceDetail
+constant float DISK_TIME_SCALE   = 0.12;     // accretion.timeScale
+constant float DISK_DENSITY_FALL = 0.25;     // accretion.densityFalloff
 
 // ---------- Vertex ----------
 
@@ -229,7 +236,7 @@ inline float3 sample_disk(thread float3 &p, float3 p_prev, thread float3 &v,
     }
     float sampleR = length(sampleP);
 
-    float effectiveScaleHeight = min(u.diskScaleHeight, 0.20);
+    float effectiveScaleHeight = min(u.diskScaleHeight, DISK_HEIGHT_MULT);
     float diskHeight = sampleR * effectiveScaleHeight;
     float diskInner = isco;
     float diskOuter = max(M * u.diskSize, diskInner * 1.1);
@@ -244,18 +251,18 @@ inline float3 sample_disk(thread float3 &p, float3 p_prev, thread float3 &v,
     float signSpin = (u.spin >= 0.0) ? 1.0 : -1.0;
     float OmegaPhase = (signSpin * sqrt_M) /
                        (sampleR * sqrt(sampleR) + a * sqrt_M);
-    float rotAngle = OmegaPhase * u.time * 1.0 * 10.0;
+    float rotAngle = OmegaPhase * u.time * DISK_TIME_SCALE * 10.0;
     float2x2 rotPhase = rot(rotAngle);
     float3 noiseP = sampleP;
     {
         float2 xz = rotPhase * float2(noiseP.x, noiseP.z);
         noiseP.x = xz.x; noiseP.z = xz.y;
     }
-    noiseP *= 1.5;
-    float turbulence = vnoise(noiseP) * 0.5 + vnoise(noiseP * 3.0) * 0.25;
+    noiseP *= DISK_TURB_SCALE;
+    float turbulence = vnoise(noiseP) * 0.5 + vnoise(noiseP * DISK_TURB_DETAIL) * 0.25;
 
     float heightFalloff = exp(-abs(sampleP.y) /
-                              max(1e-3, sampleR * effectiveScaleHeight * 0.5));
+                              max(1e-3, sampleR * effectiveScaleHeight * DISK_DENSITY_FALL));
     float radialFalloff = smoothstep(diskOuter, diskInner, sampleR);
     float baseDensity = turbulence * heightFalloff * radialFalloff;
     if (baseDensity <= 0.001) return float3(0.0);
@@ -282,7 +289,8 @@ inline float3 sample_disk(thread float3 &p, float3 p_prev, thread float3 &v,
     float isco_r = clamp(isco / sampleR, 0.0, 1.0);
     float nt_factor = max(0.0, 1.0 - sqrt(isco_r));
     float radialTempGradient = pow(isco_r, 0.75) * pow(nt_factor, 0.25);
-    float temperature = u.diskTemp * 8000.0 * radialTempGradient * delta;
+    // u.diskTemp is in Kelvin (matches web pipeline; default ≈ 9500 K).
+    float temperature = u.diskTemp * radialTempGradient * delta;
 
     float3 diskColor = blackbody(temperature) * beaming;
     float density = baseDensity * u.diskDensity * 0.12 * dt;
@@ -375,10 +383,12 @@ fragment float4 bh_fs(VSOut in [[stage_in]],
     int maxSteps = clamp(u.maxRaySteps, 32, 500);
     float3 p_prev = p;
 
+    int photonCrossings = 0;
+    float prevY = p.y;
     for (int i = 0; i < maxSteps && !hitHorizon; ++i) {
         p_prev = p;
         float r = length(p);
-        if (r < rh * 1.10) { hitHorizon = true; break; }
+        if (r < rh * HORIZON_THRESHOLD) { hitHorizon = true; break; }
         if (r > MAX_DIST) break;
 
         // Adaptive step size with curvature awareness
@@ -408,6 +418,7 @@ fragment float4 bh_fs(VSOut in [[stage_in]],
 
         // Velocity-Verlet step
         p += v * currentDt + 0.5 * accel * currentDt * currentDt;
+        float r_new = length(p);
 
         if (u.enableLensing != 0 && alpha < 0.95) {
             KerrAccel kB = kerr_accel(p, v, M, a);
@@ -415,6 +426,12 @@ fragment float4 bh_fs(VSOut in [[stage_in]],
             v += 0.5 * (accel + accelNew) * currentDt;
         }
         v = normalize(v);
+
+        // Photon-crossing counter for higher-order ring rendering.
+        if (prevY * p.y < 0.0 && r_new < rph * 2.0 && r_new > rh) {
+            photonCrossings = min(photonCrossings + 1, 3);
+        }
+        prevY = p.y;
 
         // Redshift tracking (Schwarzschild proxy)
         if (u.enableRedshiftView != 0) {
@@ -449,7 +466,14 @@ fragment float4 bh_fs(VSOut in [[stage_in]],
     float3 photon = float3(0.0);
     if (u.enablePhotonGlow != 0 && !hitHorizon) {
         float distToRing = abs(length(p) - rph);
-        photon = float3(1.0) * exp(-distToRing * 40.0) * 1.8 * u.lensingStrength;
+        float directRing = exp(-distToRing * 40.0) * 1.8 * u.lensingStrength;
+        float higherOrderRing = 0.0;
+        if (photonCrossings > 0) {
+            float ringSharpness = 60.0 + float(photonCrossings) * 30.0;
+            float ringBrightness = exp(-float(photonCrossings)) * 1.2;
+            higherOrderRing = exp(-distToRing * ringSharpness) * ringBrightness * u.lensingStrength;
+        }
+        photon = float3(1.0) * (directRing + higherOrderRing);
     }
 
     float3 ergo = float3(0.0);

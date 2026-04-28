@@ -37,10 +37,12 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     // State
     private let startTime = CFAbsoluteTimeGetCurrent()
+    private var lastFrameTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
     private var frameIndex: Int32 = 0
     private var historyValid: Bool = false
     private var lastParamsSnapshot: BHUniforms = BHUniforms()
     private var renderScale: Float = 1.0
+    private var smoothedFPS: Double = 0
 
     // External params
     var params: BlackHoleParameters
@@ -146,6 +148,21 @@ final class Renderer: NSObject, MTKViewDelegate {
         guard let drawable = view.currentDrawable,
               let descriptor = view.currentRenderPassDescriptor
         else { return }
+
+        // Frame timing: drive auto-spin and FPS readout from the real wall clock.
+        // MTKView calls draw() on the main thread, so we can mutate params directly.
+        let now = CFAbsoluteTimeGetCurrent()
+        let dt = max(1.0 / 240.0, min(now - lastFrameTime, 1.0 / 15.0))
+        lastFrameTime = now
+        smoothedFPS = smoothedFPS * 0.92 + (1.0 / dt) * 0.08
+        params.fps = smoothedFPS
+        if abs(params.autoSpin) > 1e-5 {
+            // 1 yaw unit = full 2π revolution → divide rate by 2π to map to [0,1].
+            let next = params.yaw + Float(dt) * params.autoSpin / (2.0 * .pi)
+            var wrapped = next.truncatingRemainder(dividingBy: 1.0)
+            if wrapped < 0 { wrapped += 1.0 }
+            params.yaw = wrapped
+        }
 
         let drawableSize = view.drawableSize
         if drawableSize != rtSize { rebuildOffscreenTargets(for: drawableSize) }

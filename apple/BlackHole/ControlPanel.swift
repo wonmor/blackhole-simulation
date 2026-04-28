@@ -19,18 +19,18 @@ struct ControlPanel: View {
 
                 Group {
                     sectionHeader("Geometry")
-                    slider("Mass",       value: $params.mass,            range: 0.2...4.0, format: "%.2f")
-                    slider("Spin",       value: $params.spin,            range: -1.0...1.0, format: "%.2f")
-                    slider("Lensing",    value: $params.lensingStrength, range: 0.0...3.0, format: "%.2f")
+                    slider("Mass",       value: $params.mass,            range: 0.1...10.0,  format: "%.2f")
+                    slider("Spin",       value: $params.spin,            range: -0.99...0.99, format: "%.2f")
+                    slider("Lensing",    value: $params.lensingStrength, range: 0.0...2.0,   format: "%.2f")
                     slider("Frame drag", value: $params.frameDragStrength, range: 0.0...2.0, format: "%.2f")
                 }
 
                 Group {
                     sectionHeader("Accretion disk")
-                    slider("Size",          value: $params.diskSize,        range: 1.0...20.0, format: "%.1f")
-                    slider("Density",       value: $params.diskDensity,     range: 0.0...3.0,  format: "%.2f")
-                    slider("Temperature",   value: $params.diskTemp,        range: 0.2...3.0,  format: "%.2f")
-                    slider("Scale height",  value: $params.diskScaleHeight, range: 0.02...0.20, format: "%.2f")
+                    slider("Size (M)",       value: $params.diskSize,        range: 4.0...100.0, format: "%.1f")
+                    slider("Density",        value: $params.diskDensity,     range: 0.0...5.0,   format: "%.2f")
+                    slider("Temp (K)",       value: $params.diskTemp,        range: 1000.0...50000.0, format: "%.0f")
+                    slider("Scale height",   value: $params.diskScaleHeight, range: 0.01...0.30, format: "%.2f")
                 }
 
                 Group {
@@ -41,7 +41,8 @@ struct ControlPanel: View {
 
                 Group {
                     sectionHeader("Camera")
-                    slider("Zoom", value: $params.zoom, range: 3.0...40.0, format: "%.1f")
+                    slider("Zoom (M)",  value: $params.zoom,     range: 1.5...100.0, format: "%.1f")
+                    slider("Auto-spin", value: $params.autoSpin, range: -0.1...0.1,  format: "%.3f")
                 }
 
                 Group {

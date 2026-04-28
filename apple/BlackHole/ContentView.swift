@@ -5,7 +5,7 @@ struct ContentView: View {
     @State private var showControls: Bool = true
 
     // Pinch-zoom state
-    @State private var zoomBaseline: Float = 8.0
+    @State private var zoomBaseline: Float = 30.0
     @State private var pinching: Bool = false
 
     var body: some View {
@@ -24,9 +24,8 @@ struct ContentView: View {
                         MagnificationGesture()
                             .onChanged { scale in
                                 if !pinching { pinching = true; zoomBaseline = params.zoom }
-                                // Pinch out (scale > 1) zooms out (camera further).
                                 let next = zoomBaseline / Float(max(0.1, scale))
-                                params.zoom = clamp(next, lo: 3.0, hi: 40.0)
+                                params.zoom = clamp(next, lo: 1.5, hi: 100.0)
                             }
                             .onEnded { _ in
                                 pinching = false
@@ -34,6 +33,25 @@ struct ContentView: View {
                     )
                 )
 
+            // FPS HUD (top-left)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(String(format: "%.0f FPS", params.fps))
+                    .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                    .foregroundColor(fpsColor(params.fps))
+                Text(params.preset.displayName)
+                    .font(.system(size: 10))
+                    .foregroundColor(.white.opacity(0.55))
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(.black.opacity(0.45))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .padding(.top, 16)
+            .padding(.leading, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .allowsHitTesting(false)
+
+            // Control panel (top-right)
             VStack(alignment: .trailing, spacing: 8) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.15)) { showControls.toggle() }
@@ -57,6 +75,12 @@ struct ContentView: View {
             }
         }
         .background(Color.black)
+    }
+
+    private func fpsColor(_ fps: Double) -> Color {
+        if fps < 30 { return .red }
+        if fps < 50 { return .yellow }
+        return .white.opacity(0.9)
     }
 }
 
