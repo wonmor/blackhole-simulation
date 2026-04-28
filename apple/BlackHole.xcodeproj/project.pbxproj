@@ -1,0 +1,462 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		4A9F6307104030822CEB7FAE /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFFE7DD2F5FD94877794B512 /* Renderer.swift */; };
+		5D3F7A2D3C635D755880BE7A /* MetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B07C58C81249192B2E4CC996 /* MetalView.swift */; };
+		6E122D544EA53EF9E3AA7B7D /* ControlPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA29C6AB0EA23F31509EF7AD /* ControlPanel.swift */; };
+		7AB2137D911BCED6C23F0DA9 /* MetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B07C58C81249192B2E4CC996 /* MetalView.swift */; };
+		950AB0F930740072F42899F4 /* iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2063DC9DB076023B1EDB0B0B /* iOSApp.swift */; };
+		95C9B85C8CFD1214BC42B11E /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8516951A35DF5BAC2068FF56 /* ContentView.swift */; };
+		9D2DE3AFA05D229A2391E9AB /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 78403938E2226B645D0B0A91 /* Shaders.metal */; };
+		A83DDDFB57270785BD8D4EE3 /* ControlPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA29C6AB0EA23F31509EF7AD /* ControlPanel.swift */; };
+		B4436CCDF675337E3C19AC57 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 78403938E2226B645D0B0A91 /* Shaders.metal */; };
+		C33C634C057A0EBBB885FD3A /* BlackHoleParameters.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD327117E66302BD38F7AEAD /* BlackHoleParameters.swift */; };
+		CDF59D713DF376322D3589E3 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8516951A35DF5BAC2068FF56 /* ContentView.swift */; };
+		D8C7C6A2311B938EBE7A50D6 /* macOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D877B3FC4148183FBA367728 /* macOSApp.swift */; };
+		DED631FFEF28D2F74E076767 /* BlackHoleParameters.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD327117E66302BD38F7AEAD /* BlackHoleParameters.swift */; };
+		FF4B75BF7BF4EE823CF370B5 /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFFE7DD2F5FD94877794B512 /* Renderer.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0A1996A31D48334802F73F4C /* BlackHole-macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "BlackHole-macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		2063DC9DB076023B1EDB0B0B /* iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSApp.swift; sourceTree = "<group>"; };
+		78403938E2226B645D0B0A91 /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
+		8516951A35DF5BAC2068FF56 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		886592F7CEC2BFA3D593F571 /* BlackHole-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "BlackHole-Bridging-Header.h"; sourceTree = "<group>"; };
+		B07C58C81249192B2E4CC996 /* MetalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalView.swift; sourceTree = "<group>"; };
+		B26D95461A4C15AF94731790 /* BlackHole-iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "BlackHole-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		CA29C6AB0EA23F31509EF7AD /* ControlPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlPanel.swift; sourceTree = "<group>"; };
+		D877B3FC4148183FBA367728 /* macOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = macOSApp.swift; sourceTree = "<group>"; };
+		EFFE7DD2F5FD94877794B512 /* Renderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Renderer.swift; sourceTree = "<group>"; };
+		F041D0E5499945102C25AE46 /* ShaderTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ShaderTypes.h; sourceTree = "<group>"; };
+		F16D1EB074E9B91906908442 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		FBB3B38EF7AE63FC59ED7A63 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		FD327117E66302BD38F7AEAD /* BlackHoleParameters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlackHoleParameters.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		3E2B9CCA2018B7793852F1BF /* BlackHole-iOS */ = {
+			isa = PBXGroup;
+			children = (
+				FBB3B38EF7AE63FC59ED7A63 /* Info.plist */,
+				2063DC9DB076023B1EDB0B0B /* iOSApp.swift */,
+			);
+			path = "BlackHole-iOS";
+			sourceTree = "<group>";
+		};
+		47C2261D0B2F8A80A4810AC6 /* BlackHole */ = {
+			isa = PBXGroup;
+			children = (
+				FD327117E66302BD38F7AEAD /* BlackHoleParameters.swift */,
+				8516951A35DF5BAC2068FF56 /* ContentView.swift */,
+				CA29C6AB0EA23F31509EF7AD /* ControlPanel.swift */,
+				B07C58C81249192B2E4CC996 /* MetalView.swift */,
+				CFF8C219330AA312FC5ED1C6 /* Renderer */,
+				A2D16E563B1AE9852ACA60E2 /* Shared */,
+			);
+			path = BlackHole;
+			sourceTree = "<group>";
+		};
+		559B8F056A8AEC0971976CC2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B26D95461A4C15AF94731790 /* BlackHole-iOS.app */,
+				0A1996A31D48334802F73F4C /* BlackHole-macOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		652DC05835EA78B0ED20C0C7 = {
+			isa = PBXGroup;
+			children = (
+				47C2261D0B2F8A80A4810AC6 /* BlackHole */,
+				3E2B9CCA2018B7793852F1BF /* BlackHole-iOS */,
+				FF7132E159ED7E99280E6221 /* BlackHole-macOS */,
+				559B8F056A8AEC0971976CC2 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A2D16E563B1AE9852ACA60E2 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				886592F7CEC2BFA3D593F571 /* BlackHole-Bridging-Header.h */,
+				F041D0E5499945102C25AE46 /* ShaderTypes.h */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		CFF8C219330AA312FC5ED1C6 /* Renderer */ = {
+			isa = PBXGroup;
+			children = (
+				EFFE7DD2F5FD94877794B512 /* Renderer.swift */,
+				78403938E2226B645D0B0A91 /* Shaders.metal */,
+			);
+			path = Renderer;
+			sourceTree = "<group>";
+		};
+		FF7132E159ED7E99280E6221 /* BlackHole-macOS */ = {
+			isa = PBXGroup;
+			children = (
+				F16D1EB074E9B91906908442 /* Info.plist */,
+				D877B3FC4148183FBA367728 /* macOSApp.swift */,
+			);
+			path = "BlackHole-macOS";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		63E73837F541D888209DC80A /* BlackHole-macOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4A88A0C78BAC7E75A2CBA14F /* Build configuration list for PBXNativeTarget "BlackHole-macOS" */;
+			buildPhases = (
+				D89AA49BDA1A590BEA89F637 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "BlackHole-macOS";
+			packageProductDependencies = (
+			);
+			productName = "BlackHole-macOS";
+			productReference = 0A1996A31D48334802F73F4C /* BlackHole-macOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+		81D83E5C73648945D22A3F78 /* BlackHole-iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 32073A9A37C557625EE1D5D4 /* Build configuration list for PBXNativeTarget "BlackHole-iOS" */;
+			buildPhases = (
+				6FA425935901C3B03CC1373C /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "BlackHole-iOS";
+			packageProductDependencies = (
+			);
+			productName = "BlackHole-iOS";
+			productReference = B26D95461A4C15AF94731790 /* BlackHole-iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		6155848081F05F78FB2A4DA9 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					63E73837F541D888209DC80A = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					81D83E5C73648945D22A3F78 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 39880BA803EE9D70238F089F /* Build configuration list for PBXProject "BlackHole" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 652DC05835EA78B0ED20C0C7;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 559B8F056A8AEC0971976CC2 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				81D83E5C73648945D22A3F78 /* BlackHole-iOS */,
+				63E73837F541D888209DC80A /* BlackHole-macOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		6FA425935901C3B03CC1373C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C33C634C057A0EBBB885FD3A /* BlackHoleParameters.swift in Sources */,
+				CDF59D713DF376322D3589E3 /* ContentView.swift in Sources */,
+				A83DDDFB57270785BD8D4EE3 /* ControlPanel.swift in Sources */,
+				5D3F7A2D3C635D755880BE7A /* MetalView.swift in Sources */,
+				4A9F6307104030822CEB7FAE /* Renderer.swift in Sources */,
+				9D2DE3AFA05D229A2391E9AB /* Shaders.metal in Sources */,
+				950AB0F930740072F42899F4 /* iOSApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D89AA49BDA1A590BEA89F637 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DED631FFEF28D2F74E076767 /* BlackHoleParameters.swift in Sources */,
+				95C9B85C8CFD1214BC42B11E /* ContentView.swift in Sources */,
+				6E122D544EA53EF9E3AA7B7D /* ControlPanel.swift in Sources */,
+				7AB2137D911BCED6C23F0DA9 /* MetalView.swift in Sources */,
+				FF4B75BF7BF4EE823CF370B5 /* Renderer.swift in Sources */,
+				B4436CCDF675337E3C19AC57 /* Shaders.metal in Sources */,
+				D8C7C6A2311B938EBE7A50D6 /* macOSApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		04F6F7730AA9B0E02045AC85 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "BlackHole-iOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blackholesim.app.ios;
+				SDKROOT = iphoneos;
+				SWIFT_OBJC_BRIDGING_HEADER = "BlackHole/Shared/BlackHole-Bridging-Header.h";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		190235A13531530EF43792B9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "BlackHole-macOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blackholesim.app.mac;
+				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = "BlackHole/Shared/BlackHole-Bridging-Header.h";
+			};
+			name = Release;
+		};
+		54696CEF719DBC476F1023F3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "BlackHole-iOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blackholesim.app.ios;
+				SDKROOT = iphoneos;
+				SWIFT_OBJC_BRIDGING_HEADER = "BlackHole/Shared/BlackHole-Bridging-Header.h";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		C15930BCFE8A31042DF44E6F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "BlackHole-macOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blackholesim.app.mac;
+				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = "BlackHole/Shared/BlackHole-Bridging-Header.h";
+			};
+			name = Debug;
+		};
+		C472182AEA8B54BBE6A19E4B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.10;
+			};
+			name = Release;
+		};
+		CF7F4B562461AF40D6FF1966 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.10;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		32073A9A37C557625EE1D5D4 /* Build configuration list for PBXNativeTarget "BlackHole-iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				04F6F7730AA9B0E02045AC85 /* Debug */,
+				54696CEF719DBC476F1023F3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		39880BA803EE9D70238F089F /* Build configuration list for PBXProject "BlackHole" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CF7F4B562461AF40D6FF1966 /* Debug */,
+				C472182AEA8B54BBE6A19E4B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		4A88A0C78BAC7E75A2CBA14F /* Build configuration list for PBXNativeTarget "BlackHole-macOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C15930BCFE8A31042DF44E6F /* Debug */,
+				190235A13531530EF43792B9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 6155848081F05F78FB2A4DA9 /* Project object */;
+}

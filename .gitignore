@@ -49,3 +49,9 @@ next-env.d.ts
 physics-engine/target
 physics-engine/pkg
 /public/wasm
+
+# Apple / Xcode
+apple/build/
+apple/**/xcuserdata/
+apple/**/*.xcuserstate
+apple/**/DerivedData/
