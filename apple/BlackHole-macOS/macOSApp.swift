@@ -5,29 +5,38 @@ struct BlackHoleMacApp: App {
     @StateObject private var params       = BlackHoleParameters()
     @StateObject private var subscription = SubscriptionManager()
     @StateObject private var controller   = AppController()
+    @StateObject private var pomodoro     = PomodoroTimer()
+
+    /// Bridges the menu-bar Pomodoro tap into the windowed scene's sheet.
+    @State private var pomodoroRequested = false
 
     var body: some Scene {
-        // Primary windowed simulator. Hidden when entering wallpaper mode.
         WindowGroup("BlackHole", id: "main") {
-            ContentView(params: params)
+            ContentView(params: params,
+                        subscription: subscription,
+                        pomodoro: pomodoro)
                 .preferredColorScheme(.dark)
                 .frame(minWidth: 800, minHeight: 600)
                 .environmentObject(controller)
                 .environmentObject(subscription)
-                .sheet(isPresented: $controller.requestPaywall) {
-                    PaywallSheet(subscription: subscription)
-                }
                 .task {
                     controller.bind(subscription: subscription, params: params)
+                }
+                .sheet(isPresented: $pomodoroRequested) {
+                    PomodoroView(timer: pomodoro)
+                        .padding(.horizontal, 8)
                 }
         }
         .windowStyle(.hiddenTitleBar)
 
-        // Always-on menu bar entry point.
         MenuBarExtra("BlackHole", systemImage: "circle.dashed") {
-            MenuBarContent(params: params,
-                           controller: controller,
-                           subscription: subscription)
+            MenuBarContent(
+                params: params,
+                controller: controller,
+                subscription: subscription,
+                pomodoro: pomodoro,
+                onPomodoroTap: { pomodoroRequested = true }
+            )
         }
     }
 }

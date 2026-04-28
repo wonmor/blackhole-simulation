@@ -6,6 +6,14 @@ import SwiftUI
 /// and active states, tabular-monospace numerics.
 struct ControlPanel: View {
     @ObservedObject var params: BlackHoleParameters
+    @ObservedObject var subscription: SubscriptionManager
+    @ObservedObject var pomodoro: PomodoroTimer
+
+    /// Fired when user taps the Pomodoro button AND has Pro. Container
+    /// presents `PomodoroView` (sheet on iOS, window on macOS).
+    var onPomodoroTap: () -> Void = {}
+    /// iOS-only "Save as Wallpaper" handler. nil → button hidden.
+    var onWallpaperSaveTap: (() -> Void)? = nil
 
     // Section expand/collapse state
     @State private var openGeometry = true
@@ -13,6 +21,7 @@ struct ControlPanel: View {
     @State private var openBloom = false
     @State private var openCamera = true
     @State private var openEffects = false
+    @State private var openTools = true
 
     private let cyan = Color(red: 0.55, green: 0.95, blue: 1.0)
 
@@ -43,6 +52,30 @@ struct ControlPanel: View {
             section(title: "Camera", isOpen: $openCamera) {
                 slider("Zoom",      value: $params.zoom,     range: 1.5...100.0, format: "%.1f", unit: "M")
                 slider("Auto-spin", value: $params.autoSpin, range: -0.1...0.1,  format: "%.3f", unit: "rad/s")
+            }
+
+            section(title: "Tools", isOpen: $openTools) {
+                toolButton(
+                    label: "Pomodoro",
+                    sub: pomodoroSubtitle,
+                    icon: "timer",
+                    locked: !subscription.isProUnlocked
+                ) {
+                    if subscription.isProUnlocked {
+                        onPomodoroTap()
+                    } else {
+                        subscription.requestPaywall = true
+                    }
+                }
+
+                if let onWallpaperSaveTap = onWallpaperSaveTap {
+                    toolButton(
+                        label: "Save as Wallpaper",
+                        sub: "Export current frame to Photos",
+                        icon: "square.and.arrow.down",
+                        locked: false
+                    ) { onWallpaperSaveTap() }
+                }
             }
 
             section(title: "Effects", isOpen: $openEffects) {
@@ -233,6 +266,63 @@ struct ControlPanel: View {
         params.enableDoppler = true
         params.enableJets = true
         params.showRedshift = false
+    }
+
+    // MARK: - Tools section helpers
+
+    @ViewBuilder
+    private func toolButton(label: String,
+                            sub: String,
+                            icon: String,
+                            locked: Bool,
+                            action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(cyan.opacity(0.85))
+                    .frame(width: 22)
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 6) {
+                        Text(label)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.white.opacity(0.95))
+                        if locked {
+                            Text("PRO")
+                                .font(.system(size: 8, weight: .semibold, design: .rounded))
+                                .tracking(0.8)
+                                .foregroundColor(.black)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1.5)
+                                .background(Capsule(style: .continuous).fill(cyan))
+                        }
+                    }
+                    Text(sub)
+                        .font(.system(size: 10))
+                        .foregroundColor(.white.opacity(0.55))
+                }
+                Spacer()
+                Image(systemName: locked ? "lock.fill" : "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.45))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.white.opacity(0.04))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.10), lineWidth: 0.6)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var pomodoroSubtitle: String {
+        if pomodoro.phase == .idle { return "Focus timer · 25 min default" }
+        return "\(pomodoro.phase.label) · \(pomodoro.formattedTime)"
     }
 }
 

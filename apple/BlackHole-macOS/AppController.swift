@@ -18,7 +18,6 @@ enum AppMode {
 final class AppController: ObservableObject {
 
     @Published private(set) var mode: AppMode = .windowed
-    @Published var requestPaywall: Bool = false
     @Published var showAbout: Bool = false
 
     let wallpaper: WallpaperManager
@@ -39,12 +38,12 @@ final class AppController: ObservableObject {
                 if state == .expired && self.mode == .wallpaper {
                     self.wallpaper.markPreviewExpired()
                     // Clicking the wallpaper now exits to windowed + paywall.
-                    self.wallpaper.onExpiredClick = { [weak self] in
+                    self.wallpaper.onExpiredClick = { [weak subscription, weak self] in
                         Task { @MainActor in
                             self?.setMode(.windowed,
                                           params: params,
-                                          subscription: subscription)
-                            self?.requestPaywall = true
+                                          subscription: subscription ?? SubscriptionManager())
+                            subscription?.requestPaywall = true
                         }
                     }
                 }
@@ -62,13 +61,10 @@ final class AppController: ObservableObject {
                 switch subscription.previewState {
                 case .available:
                     subscription.startPreview()
-                    // Fall through to enter wallpaper mode.
                 case .running:
-                    // Already in preview but not in wallpaper? Just enter.
                     break
                 case .expired:
-                    // No more free time. Show paywall and stay in windowed.
-                    requestPaywall = true
+                    subscription.requestPaywall = true
                     return
                 }
             }

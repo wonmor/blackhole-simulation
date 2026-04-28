@@ -6,6 +6,10 @@ struct MenuBarContent: View {
     @ObservedObject var params: BlackHoleParameters
     @ObservedObject var controller: AppController
     @ObservedObject var subscription: SubscriptionManager
+    @ObservedObject var pomodoro: PomodoroTimer
+
+    /// Triggers the windowed app to open the Pomodoro sheet. Set by macOSApp.
+    var onPomodoroTap: () -> Void = {}
 
     var body: some View {
         // Mode
@@ -42,6 +46,28 @@ struct MenuBarContent: View {
 
         Divider()
 
+        // Pomodoro
+        Button(pomodoroLabel) {
+            if subscription.isProUnlocked {
+                if controller.mode == .wallpaper {
+                    controller.setMode(.windowed,
+                                       params: params,
+                                       subscription: subscription)
+                }
+                onPomodoroTap()
+            } else {
+                if controller.mode == .wallpaper {
+                    controller.setMode(.windowed,
+                                       params: params,
+                                       subscription: subscription)
+                }
+                subscription.requestPaywall = true
+            }
+        }
+        .keyboardShortcut("P", modifiers: [.command, .option])
+
+        Divider()
+
         // Subscription
         if subscription.isProUnlocked {
             Button("Manage Subscription…") {
@@ -51,15 +77,14 @@ struct MenuBarContent: View {
             }
         } else {
             Button("Subscribe to Pro…") {
-                // Sheet is bound to the main window; if we're in wallpaper
-                // mode the main window is hidden, so flip back first so the
-                // sheet has somewhere to render.
+                // Sheet renders on the main window — bring it back if we're
+                // currently in wallpaper mode.
                 if controller.mode == .wallpaper {
                     controller.setMode(.windowed,
                                        params: params,
                                        subscription: subscription)
                 }
-                controller.requestPaywall = true
+                subscription.requestPaywall = true
             }
         }
 
@@ -81,5 +106,10 @@ struct MenuBarContent: View {
             NSApplication.shared.terminate(nil)
         }
         .keyboardShortcut("q", modifiers: .command)
+    }
+
+    private var pomodoroLabel: String {
+        if pomodoro.phase == .idle { return subscription.isProUnlocked ? "Pomodoro…" : "Pomodoro · Pro" }
+        return "Pomodoro · \(pomodoro.formattedTime) (\(pomodoro.phase.label))"
     }
 }

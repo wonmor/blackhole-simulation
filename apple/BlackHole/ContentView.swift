@@ -2,7 +2,12 @@ import SwiftUI
 
 struct ContentView: View {
     @ObservedObject var params: BlackHoleParameters
+    @ObservedObject var subscription: SubscriptionManager
+    @ObservedObject var pomodoro: PomodoroTimer
+
     @State private var showControls: Bool = false
+    @State private var showPomodoro: Bool = false
+    @State private var wallpaperToast: String? = nil
 
     // Pinch-zoom state
     @State private var zoomBaseline: Float = 100.0
@@ -62,6 +67,18 @@ struct ContentView: View {
             }
         }
         .background(Color.black)
+        .sheet(isPresented: $showPomodoro) {
+            PomodoroView(timer: pomodoro)
+                .padding(.horizontal, 8)
+        }
+        .sheet(isPresented: $subscription.requestPaywall) {
+            PaywallSheet(subscription: subscription)
+        }
+        .alert("Wallpaper", isPresented: wallpaperToastBinding, actions: {
+            Button("OK", role: .cancel) { wallpaperToast = nil }
+        }, message: {
+            Text(wallpaperToast ?? "")
+        })
         .onChange(of: scenePhase) { _, phase in
             hostFocused = (phase == .active)
         }
@@ -91,10 +108,46 @@ struct ContentView: View {
             .buttonStyle(.plain)
 
             if showControls {
-                ControlPanel(params: params)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                ControlPanel(
+                    params: params,
+                    subscription: subscription,
+                    pomodoro: pomodoro,
+                    onPomodoroTap: { showPomodoro = true },
+                    onWallpaperSaveTap: wallpaperSaveAction
+                )
+                .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
+    }
+
+    // MARK: - Helpers
+
+    private var wallpaperSaveAction: (() -> Void)? {
+        #if os(iOS)
+        return {
+            Task {
+                await WallpaperSaver.shared.capture()
+                switch WallpaperSaver.shared.status {
+                case .saved:
+                    wallpaperToast = "Saved to Photos. Open Photos → tap → Share → Use as Wallpaper."
+                case .denied:
+                    wallpaperToast = "Photos access denied. Enable it in Settings → BlackHole."
+                case .failed(let m):
+                    wallpaperToast = "Couldn't save: \(m)"
+                default:
+                    break
+                }
+                WallpaperSaver.shared.reset()
+            }
+        }
+        #else
+        return nil
+        #endif
+    }
+
+    private var wallpaperToastBinding: Binding<Bool> {
+        Binding(get: { wallpaperToast != nil },
+                set: { if !$0 { wallpaperToast = nil } })
     }
 }
 

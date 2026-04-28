@@ -16,6 +16,10 @@ final class SubscriptionManager: ObservableObject {
     @Published private(set) var products: [Product] = []
     @Published private(set) var isLoadingProducts: Bool = false
     @Published var lastError: String?
+    /// Cross-platform signal for "show the paywall sheet now". Any caller
+    /// (menu bar, ControlPanel, AppController) flips this true; the view
+    /// tree presents `PaywallSheet` on its primary window.
+    @Published var requestPaywall: Bool = false
 
     /// Hybrid free-trial: 90 seconds of live wallpaper per app launch.
     @Published private(set) var previewState: PreviewState = .available
