@@ -58,7 +58,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     // Camera smoothing
     private var displayedYaw: Float = 0.5
-    private var displayedPitch: Float = 0.5
+    private var displayedPitch: Float = 0.539
     private var displayedZoom: Float = 100.0
     private var cameraInitialized: Bool = false
     /// Critical-damping exponent. Larger = stiffer; ~12 settles in ~250 ms.
@@ -244,7 +244,7 @@ final class Renderer: NSObject, MTKViewDelegate {
             params.yaw = wrapped
         }
 
-        // Camera smoothing — exponential blend toward target.
+        // Camera smoothing — exponential blend toward user targets.
         if !cameraInitialized {
             displayedYaw = params.yaw
             displayedPitch = params.pitch
@@ -254,7 +254,6 @@ final class Renderer: NSObject, MTKViewDelegate {
         let blend = 1.0 - exp(-cameraDamping * Float(dt))
         displayedPitch += (params.pitch - displayedPitch) * blend
         displayedZoom  += (params.zoom  - displayedZoom)  * blend
-        // Yaw needs shortest-arc wrap.
         var dyaw = (params.yaw - displayedYaw).truncatingRemainder(dividingBy: 1.0)
         if dyaw >  0.5 { dyaw -= 1.0 }
         if dyaw < -0.5 { dyaw += 1.0 }
@@ -497,6 +496,41 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     private func halton(index: Int) -> simd_float2 {
         return simd_float2(haltonAt(index, base: 2), haltonAt(index, base: 3))
+    }
+
+    // MARK: - Intro camera curves
+
+    /// Pitch curve over t ∈ [0,1]: cinematic → top pole → bottom pole → cinematic.
+    /// Uses cosine easing for smooth in/out at every keyframe.
+    private func introPitchCurve(t: Double) -> Double {
+        let pCinematic: Double = 0.539
+        let pTop: Double = 0.05
+        let pBot: Double = 0.95
+        if t < 0.30 {
+            // Default → top
+            let s = ease(t / 0.30)
+            return pCinematic + (pTop - pCinematic) * s
+        } else if t < 0.65 {
+            // Top → bottom (slow sweep through equator)
+            let s = ease((t - 0.30) / 0.35)
+            return pTop + (pBot - pTop) * s
+        } else {
+            // Bottom → cinematic
+            let s = ease((t - 0.65) / 0.35)
+            return pBot + (pCinematic - pBot) * s
+        }
+    }
+
+    /// Slight yaw drift during the intro for parallax — full cycle over the
+    /// intro length, ±0.10 around params.yaw.
+    private func introYawCurve(t: Double) -> Double {
+        let base = Double(params.yaw)
+        return base + 0.10 * sin(t * 2.0 * .pi)
+    }
+
+    private func ease(_ x: Double) -> Double {
+        let c = max(0.0, min(1.0, x))
+        return 0.5 - 0.5 * cos(.pi * c)
     }
 
     private func haltonAt(_ index: Int, base: Int) -> Float {

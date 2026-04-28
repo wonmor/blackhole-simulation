@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var params = BlackHoleParameters()
-    @State private var showControls: Bool = true
+    @ObservedObject var params: BlackHoleParameters
+    @State private var showControls: Bool = false
 
     // Pinch-zoom state
     @State private var zoomBaseline: Float = 100.0

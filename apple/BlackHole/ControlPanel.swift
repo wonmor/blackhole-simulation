@@ -80,14 +80,9 @@ struct ControlPanel: View {
 
     private var header: some View {
         HStack(alignment: .center) {
-            HStack(spacing: 7) {
-                Image(systemName: "circle.dotted.circle.fill")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(cyan)
-                Text("Black Hole")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white)
-            }
+            Image(systemName: "circle.dotted.circle.fill")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(cyan)
             Spacer()
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) { resetToDefaults() }
@@ -102,6 +97,7 @@ struct ControlPanel: View {
             .buttonStyle(.plain)
             .help("Reset to defaults")
         }
+        .padding(.top, 16)
     }
 
     private var qualityPicker: some View {
