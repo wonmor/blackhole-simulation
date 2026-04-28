@@ -1,0 +1,19 @@
+[package]
+name = "gravitas-ffi"
+version = "0.1.0"
+edition = "2021"
+description = "C-ABI bridge for gravitas-core. Wraps Kerr observables and the analytic shadow curve for native consumers (iOS, macOS)."
+license = "MIT OR Apache-2.0"
+
+[lib]
+name = "gravitas_ffi"
+crate-type = ["staticlib"]
+
+[dependencies]
+gravitas-core = { path = "../gravitas-core" }
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "symbols"

@@ -7,7 +7,19 @@ typealias PlatformViewRepresentable = NSViewRepresentable
 typealias PlatformViewRepresentable = UIViewRepresentable
 #endif
 
-/// SwiftUI wrapper for an MTKView driving the black-hole `Renderer`.
+#if os(macOS)
+/// MTKView subclass that forwards scroll-wheel events as zoom deltas.
+final class ScrollableMTKView: MTKView {
+    var onScrollDelta: ((CGFloat) -> Void)?
+    override func scrollWheel(with event: NSEvent) {
+        // Trackpad two-finger scroll uses scrollingDeltaY; mouse uses deltaY.
+        let dy = event.scrollingDeltaY != 0 ? event.scrollingDeltaY : event.deltaY
+        onScrollDelta?(dy)
+    }
+    override var acceptsFirstResponder: Bool { true }
+}
+#endif
+
 struct MetalView: PlatformViewRepresentable {
     @ObservedObject var params: BlackHoleParameters
 
@@ -17,8 +29,7 @@ struct MetalView: PlatformViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    private func makeMTKView(coordinator: Coordinator) -> MTKView {
-        let view = MTKView()
+    private func configure(view: MTKView, coordinator: Coordinator) {
         guard let device = MTLCreateSystemDefaultDevice() else {
             fatalError("Metal not supported on this device.")
         }
@@ -33,19 +44,35 @@ struct MetalView: PlatformViewRepresentable {
         let renderer = Renderer(mtkView: view, params: params)
         coordinator.renderer = renderer
         view.delegate = renderer
-        return view
     }
 
     private func updateMTKView(_ view: MTKView, coordinator: Coordinator) {
-        // Push latest params into the renderer
         coordinator.renderer?.params = params
     }
 
     #if os(macOS)
-    func makeNSView(context: Context) -> MTKView { makeMTKView(coordinator: context.coordinator) }
-    func updateNSView(_ nsView: MTKView, context: Context) { updateMTKView(nsView, coordinator: context.coordinator) }
+    func makeNSView(context: Context) -> MTKView {
+        let view = ScrollableMTKView()
+        configure(view: view, coordinator: context.coordinator)
+        view.onScrollDelta = { [weak params] dy in
+            guard let params = params else { return }
+            // Negative dy = scroll up = zoom in.
+            let next = params.zoom * Float(1.0 - dy * 0.01)
+            params.zoom = min(max(next, 3.0), 40.0)
+        }
+        return view
+    }
+    func updateNSView(_ nsView: MTKView, context: Context) {
+        updateMTKView(nsView, coordinator: context.coordinator)
+    }
     #else
-    func makeUIView(context: Context) -> MTKView { makeMTKView(coordinator: context.coordinator) }
-    func updateUIView(_ uiView: MTKView, context: Context) { updateMTKView(uiView, coordinator: context.coordinator) }
+    func makeUIView(context: Context) -> MTKView {
+        let view = MTKView()
+        configure(view: view, coordinator: context.coordinator)
+        return view
+    }
+    func updateUIView(_ uiView: MTKView, context: Context) {
+        updateMTKView(uiView, coordinator: context.coordinator)
+    }
     #endif
 }

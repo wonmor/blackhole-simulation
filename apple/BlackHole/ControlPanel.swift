@@ -4,38 +4,76 @@ struct ControlPanel: View {
     @ObservedObject var params: BlackHoleParameters
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Black Hole")
-                .font(.headline)
-                .foregroundColor(.white.opacity(0.9))
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Black Hole")
+                    .font(.headline)
+                    .foregroundColor(.white.opacity(0.9))
 
-            slider("Mass",      value: $params.mass,            range: 0.2...4.0,   format: "%.2f")
-            slider("Spin",      value: $params.spin,            range: -1.0...1.0,  format: "%.2f")
-            slider("Lensing",   value: $params.lensingStrength, range: 0.0...3.0,   format: "%.2f")
+                Picker("Quality", selection: $params.preset) {
+                    ForEach(QualityPreset.allCases) { p in
+                        Text(p.displayName).tag(p)
+                    }
+                }
+                .pickerStyle(.segmented)
 
-            Divider().background(Color.white.opacity(0.15))
+                Group {
+                    sectionHeader("Geometry")
+                    slider("Mass",       value: $params.mass,            range: 0.2...4.0, format: "%.2f")
+                    slider("Spin",       value: $params.spin,            range: -1.0...1.0, format: "%.2f")
+                    slider("Lensing",    value: $params.lensingStrength, range: 0.0...3.0, format: "%.2f")
+                    slider("Frame drag", value: $params.frameDragStrength, range: 0.0...2.0, format: "%.2f")
+                }
 
-            slider("Disk size",    value: $params.diskSize,    range: 1.0...20.0, format: "%.1f")
-            slider("Disk density", value: $params.diskDensity, range: 0.0...3.0,  format: "%.2f")
-            slider("Disk temp",    value: $params.diskTemp,    range: 0.2...3.0,  format: "%.2f")
+                Group {
+                    sectionHeader("Accretion disk")
+                    slider("Size",          value: $params.diskSize,        range: 1.0...20.0, format: "%.1f")
+                    slider("Density",       value: $params.diskDensity,     range: 0.0...3.0,  format: "%.2f")
+                    slider("Temperature",   value: $params.diskTemp,        range: 0.2...3.0,  format: "%.2f")
+                    slider("Scale height",  value: $params.diskScaleHeight, range: 0.02...0.20, format: "%.2f")
+                }
 
-            Divider().background(Color.white.opacity(0.15))
+                Group {
+                    sectionHeader("Bloom")
+                    slider("Threshold", value: $params.bloomThreshold, range: 0.2...3.0, format: "%.2f")
+                    slider("Intensity", value: $params.bloomIntensity, range: 0.0...1.5, format: "%.2f")
+                }
 
-            slider("Zoom",      value: $params.zoom,           range: 3.0...40.0, format: "%.1f")
-            stepper("Ray steps", value: $params.maxRaySteps,   range: 64...500, step: 16)
+                Group {
+                    sectionHeader("Camera")
+                    slider("Zoom", value: $params.zoom, range: 3.0...40.0, format: "%.1f")
+                }
 
-            Toggle("Show redshift", isOn: $params.showRedshift)
-                .toggleStyle(.switch)
-                .foregroundColor(.white)
+                Group {
+                    sectionHeader("Effects")
+                    toggle("Gravitational lensing",   isOn: $params.enableLensing)
+                    toggle("Accretion disk",          isOn: $params.enableDisk)
+                    toggle("Doppler beaming",         isOn: $params.enableDoppler)
+                    toggle("Photon ring",             isOn: $params.enablePhotonGlow)
+                    toggle("Stars + nebula",          isOn: $params.enableStars)
+                    toggle("Relativistic jets",       isOn: $params.enableJets)
+                    toggle("Show redshift overlay",   isOn: $params.showRedshift)
+                }
+            }
+            .padding(14)
         }
-        .padding(14)
-        .frame(width: 280)
+        .frame(width: 290)
+        .frame(maxHeight: 620)
         .background(.black.opacity(0.55))
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
+    }
+
+    @ViewBuilder
+    private func sectionHeader(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.system(size: 10, weight: .semibold))
+            .tracking(1.2)
+            .foregroundColor(.white.opacity(0.5))
+            .padding(.top, 4)
     }
 
     @ViewBuilder
@@ -59,21 +97,10 @@ struct ControlPanel: View {
     }
 
     @ViewBuilder
-    private func stepper(_ label: String,
-                         value: Binding<Int>,
-                         range: ClosedRange<Int>,
-                         step: Int) -> some View {
-        HStack {
-            Text(label)
-                .font(.caption)
-                .foregroundColor(.white.opacity(0.75))
-            Spacer()
-            Stepper(value: value, in: range, step: step) {
-                Text("\(value.wrappedValue)")
-                    .font(.caption.monospacedDigit())
-                    .foregroundColor(.white.opacity(0.9))
-            }
-            .labelsHidden()
-        }
+    private func toggle(_ label: String, isOn: Binding<Bool>) -> some View {
+        Toggle(label, isOn: isOn)
+            .toggleStyle(.switch)
+            .font(.caption)
+            .foregroundColor(.white.opacity(0.85))
     }
 }
