@@ -1,107 +1,331 @@
 import SwiftUI
 
+/// User-facing parameter editor.
+/// Visual language matches `HUDView`: ultraThinMaterial over a dark scrim, a
+/// subtle white-gradient border, soft shadow, cyan accent for section headers
+/// and active states, tabular-monospace numerics.
 struct ControlPanel: View {
     @ObservedObject var params: BlackHoleParameters
 
+    // Section expand/collapse state
+    @State private var openGeometry = true
+    @State private var openDisk = true
+    @State private var openBloom = false
+    @State private var openCamera = true
+    @State private var openEffects = false
+
+    private let cyan = Color(red: 0.55, green: 0.95, blue: 1.0)
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Black Hole")
-                    .font(.headline)
-                    .foregroundColor(.white.opacity(0.9))
+        VStack(alignment: .leading, spacing: 10) {
+            header
+            qualityPicker
 
-                Picker("Quality", selection: $params.preset) {
-                    ForEach(QualityPreset.allCases) { p in
-                        Text(p.displayName).tag(p)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                Group {
-                    sectionHeader("Geometry")
-                    slider("Mass",       value: $params.mass,            range: 0.1...10.0,  format: "%.2f")
-                    slider("Spin",       value: $params.spin,            range: -0.99...0.99, format: "%.2f")
-                    slider("Lensing",    value: $params.lensingStrength, range: 0.0...2.0,   format: "%.2f")
-                    slider("Frame drag", value: $params.frameDragStrength, range: 0.0...2.0, format: "%.2f")
-                }
-
-                Group {
-                    sectionHeader("Accretion disk")
-                    slider("Size (M)",       value: $params.diskSize,        range: 4.0...100.0, format: "%.1f")
-                    slider("Density",        value: $params.diskDensity,     range: 0.0...5.0,   format: "%.2f")
-                    slider("Temp (K)",       value: $params.diskTemp,        range: 1000.0...50000.0, format: "%.0f")
-                    slider("Scale height",   value: $params.diskScaleHeight, range: 0.01...0.30, format: "%.2f")
-                }
-
-                Group {
-                    sectionHeader("Bloom")
-                    slider("Threshold", value: $params.bloomThreshold, range: 0.2...3.0, format: "%.2f")
-                    slider("Intensity", value: $params.bloomIntensity, range: 0.0...1.5, format: "%.2f")
-                }
-
-                Group {
-                    sectionHeader("Camera")
-                    slider("Zoom (M)",  value: $params.zoom,     range: 1.5...100.0, format: "%.1f")
-                    slider("Auto-spin", value: $params.autoSpin, range: -0.1...0.1,  format: "%.3f")
-                }
-
-                Group {
-                    sectionHeader("Effects")
-                    toggle("Gravitational lensing",   isOn: $params.enableLensing)
-                    toggle("Accretion disk",          isOn: $params.enableDisk)
-                    toggle("Doppler beaming",         isOn: $params.enableDoppler)
-                    toggle("Photon ring",             isOn: $params.enablePhotonGlow)
-                    toggle("Stars + nebula",          isOn: $params.enableStars)
-                    toggle("Relativistic jets",       isOn: $params.enableJets)
-                    toggle("Show redshift overlay",   isOn: $params.showRedshift)
-                }
+            section(title: "Geometry", isOpen: $openGeometry) {
+                slider("Mass",       value: $params.mass,            range: 0.1...10.0, format: "%.2f", unit: "M☉")
+                slider("Spin",       value: $params.spin,            range: -0.99...0.99, format: "%.2f", unit: "a*")
+                slider("Lensing",    value: $params.lensingStrength, range: 0.0...2.0,  format: "%.2f", unit: "η")
+                slider("Frame drag", value: $params.frameDragStrength, range: 0.0...2.0, format: "%.2f", unit: "")
             }
-            .padding(14)
+
+            section(title: "Accretion disk", isOpen: $openDisk) {
+                slider("Size",         value: $params.diskSize,        range: 4.0...100.0, format: "%.1f", unit: "M")
+                slider("Density",      value: $params.diskDensity,     range: 0.0...5.0,  format: "%.2f", unit: "")
+                slider("Temperature",  value: $params.diskTemp,        range: 1000.0...50000.0, format: "%.0f", unit: "K")
+                slider("Scale height", value: $params.diskScaleHeight, range: 0.01...0.30, format: "%.2f", unit: "H/R")
+            }
+
+            section(title: "Bloom", isOpen: $openBloom) {
+                slider("Threshold", value: $params.bloomThreshold, range: 0.2...3.0, format: "%.2f", unit: "")
+                slider("Intensity", value: $params.bloomIntensity, range: 0.0...1.5, format: "%.2f", unit: "")
+            }
+
+            section(title: "Camera", isOpen: $openCamera) {
+                slider("Zoom",      value: $params.zoom,     range: 1.5...100.0, format: "%.1f", unit: "M")
+                slider("Auto-spin", value: $params.autoSpin, range: -0.1...0.1,  format: "%.3f", unit: "rad/s")
+            }
+
+            section(title: "Effects", isOpen: $openEffects) {
+                FlowToggleGrid(items: [
+                    ("Lensing",  $params.enableLensing),
+                    ("Disk",     $params.enableDisk),
+                    ("Doppler",  $params.enableDoppler),
+                    ("Photon",   $params.enablePhotonGlow),
+                    ("Stars",    $params.enableStars),
+                    ("Jets",     $params.enableJets),
+                    ("Redshift", $params.showRedshift),
+                ])
+            }
         }
+        .padding(14)
         .frame(width: 290)
-        .frame(maxHeight: 620)
-        .background(.black.opacity(0.55))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .frame(maxHeight: 640)
+        .background(panelBackground)
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.20), Color.white.opacity(0.04)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.8
+                )
         )
+        .shadow(color: .black.opacity(0.45), radius: 14, x: 0, y: 6)
+        .colorScheme(.dark)
     }
+
+    // MARK: - Header
+
+    private var header: some View {
+        HStack(alignment: .center) {
+            HStack(spacing: 7) {
+                Image(systemName: "circle.dotted.circle.fill")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(cyan)
+                Text("Black Hole")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+            }
+            Spacer()
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) { resetToDefaults() }
+            } label: {
+                Image(systemName: "arrow.counterclockwise")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.65))
+                    .padding(6)
+                    .background(Circle().fill(Color.white.opacity(0.06)))
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.6))
+            }
+            .buttonStyle(.plain)
+            .help("Reset to defaults")
+        }
+    }
+
+    private var qualityPicker: some View {
+        // Custom segmented control. Native Picker(.segmented) styling is fine
+        // but the cyan accent fits the rest of the chrome better.
+        HStack(spacing: 4) {
+            ForEach(QualityPreset.allCases) { p in
+                Button {
+                    params.preset = p
+                } label: {
+                    Text(p.displayName.uppercased())
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .tracking(1.0)
+                        .foregroundColor(params.preset == p ? .black : .white.opacity(0.75))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(params.preset == p ? cyan : Color.white.opacity(0.05))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .strokeBorder(
+                                    params.preset == p ? Color.clear : Color.white.opacity(0.10),
+                                    lineWidth: 0.6
+                                )
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var panelBackground: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.ultraThinMaterial)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.black.opacity(0.30))
+        }
+    }
+
+    // MARK: - Sections
 
     @ViewBuilder
-    private func sectionHeader(_ text: String) -> some View {
-        Text(text.uppercased())
-            .font(.system(size: 10, weight: .semibold))
-            .tracking(1.2)
-            .foregroundColor(.white.opacity(0.5))
-            .padding(.top, 4)
+    private func section<Content: View>(
+        title: String,
+        isOpen: Binding<Bool>,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) { isOpen.wrappedValue.toggle() }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .heavy))
+                        .foregroundColor(cyan.opacity(0.85))
+                        .rotationEffect(.degrees(isOpen.wrappedValue ? 90 : 0))
+                    Text(title.uppercased())
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .tracking(1.4)
+                        .foregroundColor(cyan.opacity(0.85))
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isOpen.wrappedValue {
+                VStack(alignment: .leading, spacing: 8) {
+                    content()
+                }
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .top)),
+                    removal: .opacity
+                ))
+            }
+
+            sectionDivider
+        }
     }
+
+    private var sectionDivider: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.07))
+            .frame(height: 1)
+    }
+
+    // MARK: - Slider row
 
     @ViewBuilder
     private func slider(_ label: String,
                         value: Binding<Float>,
                         range: ClosedRange<Float>,
-                        format: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
+                        format: String,
+                        unit: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline) {
                 Text(label)
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.75))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.white.opacity(0.78))
                 Spacer()
-                Text(String(format: format, value.wrappedValue))
-                    .font(.caption.monospacedDigit())
-                    .foregroundColor(.white.opacity(0.9))
+                ValueChip(format: format, unit: unit, value: value.wrappedValue)
             }
             Slider(value: value, in: range)
-                .tint(.cyan)
+                .tint(cyan)
         }
     }
 
-    @ViewBuilder
-    private func toggle(_ label: String, isOn: Binding<Bool>) -> some View {
-        Toggle(label, isOn: isOn)
-            .toggleStyle(.switch)
-            .font(.caption)
-            .foregroundColor(.white.opacity(0.85))
+    // MARK: - Reset
+
+    private func resetToDefaults() {
+        params.mass = 1.0
+        params.spin = 0.5
+        params.lensingStrength = 0.7
+        params.frameDragStrength = 2.0
+        params.diskDensity = 4.0
+        params.diskTemp = 9500.0
+        params.diskSize = 50.0
+        params.diskScaleHeight = 0.2
+        params.zoom = 100.0
+        params.yaw = 0.5
+        params.pitch = 0.539
+        params.autoSpin = 0.005
+        params.preset = .high
+        params.bloomThreshold = 1.0
+        params.bloomIntensity = 0.45
+        params.enableLensing = true
+        params.enableDisk = true
+        params.enableStars = true
+        params.enablePhotonGlow = true
+        params.enableDoppler = true
+        params.enableJets = true
+        params.showRedshift = false
+    }
+}
+
+// MARK: - Sub-components
+
+private struct ValueChip: View {
+    let format: String
+    let unit: String
+    let value: Float
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(String(format: format, value))
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundColor(.white.opacity(0.92))
+            if !unit.isEmpty {
+                Text(unit)
+                    .font(.system(size: 9, weight: .regular, design: .rounded))
+                    .foregroundColor(.white.opacity(0.45))
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(
+            Capsule(style: .continuous).fill(Color.white.opacity(0.05))
+        )
+        .overlay(
+            Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.10), lineWidth: 0.6)
+        )
+    }
+}
+
+/// Pill-style toggles laid out in a 2-column flow grid. Replaces the stack of
+/// system Toggles for a denser, more "panel" feel.
+private struct FlowToggleGrid: View {
+    let items: [(String, Binding<Bool>)]
+
+    private let cyan = Color(red: 0.55, green: 0.95, blue: 1.0)
+
+    private var rows: [[(String, Binding<Bool>)]] {
+        stride(from: 0, to: items.count, by: 2).map {
+            Array(items[$0..<min($0 + 2, items.count)])
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(rows.indices, id: \.self) { rIdx in
+                HStack(spacing: 6) {
+                    ForEach(rows[rIdx].indices, id: \.self) { cIdx in
+                        let (label, binding) = rows[rIdx][cIdx]
+                        TogglePill(label: label, isOn: binding, accent: cyan)
+                    }
+                    if rows[rIdx].count == 1 { Spacer().frame(maxWidth: .infinity) }
+                }
+            }
+        }
+    }
+}
+
+private struct TogglePill: View {
+    let label: String
+    @Binding var isOn: Bool
+    let accent: Color
+
+    var body: some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.12)) { isOn.toggle() }
+        } label: {
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(isOn ? accent : Color.white.opacity(0.18))
+                    .frame(width: 6, height: 6)
+                Text(label)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundColor(isOn ? .white : .white.opacity(0.55))
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isOn ? accent.opacity(0.16) : Color.white.opacity(0.04))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(isOn ? accent.opacity(0.40) : Color.white.opacity(0.10), lineWidth: 0.7)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }

@@ -10,21 +10,33 @@ import simd
 ///   4. blurH  -> bloomScratch
 ///   5. blurV  -> bloomBright
 ///   6. comp   -> drawable      (additive bloom + ACES + gamma)
+///
+/// Performance levers:
+///   - Scene fragment uses Metal function constants for feature flags so toggles
+///     fold to compile-time and disappear from the inner ray loop. Pipelines
+///     are cached per 7-bit flag mask in `scenePipelines`.
+///   - PID-driven adaptive resolution multiplies `preset.renderScale` by
+///     `dynamicScale` to hold ~60 FPS without visible quality cuts.
+///   - Camera pose (yaw / pitch / zoom) is exponentially blended toward the
+///     user-set target each frame so drag, pinch, and preset changes feel
+///     soft instead of snappy.
 final class Renderer: NSObject, MTKViewDelegate {
 
     // Plumbing
     let device: MTLDevice
+    private let library: MTLLibrary
     private let queue: MTLCommandQueue
     private let bilinearSampler: MTLSamplerState
 
-    // Pipelines
-    private let scenePipeline: MTLRenderPipelineState
+    // Scene pipeline cache (function-constant specialized) + post pipelines
+    private var scenePipelines: [UInt8: MTLRenderPipelineState] = [:]
     private let taaPipeline: MTLRenderPipelineState
     private let brightPipeline: MTLRenderPipelineState
     private let blurHPipeline: MTLRenderPipelineState
     private let blurVPipeline: MTLRenderPipelineState
     private let compositePipeline: MTLRenderPipelineState
     private let copyPipeline: MTLRenderPipelineState
+    private let drawableFormat: MTLPixelFormat
 
     // Resources
     private var uniformsBuffer: MTLBuffer
@@ -34,6 +46,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     private var bloomBright: MTLTexture?
     private var bloomScratch: MTLTexture?
     private var rtSize: CGSize = .zero
+    private var rtScale: Float = 1.0   // The scale used to allocate current RTs.
 
     // State
     private let startTime = CFAbsoluteTimeGetCurrent()
@@ -41,8 +54,29 @@ final class Renderer: NSObject, MTKViewDelegate {
     private var frameIndex: Int32 = 0
     private var historyValid: Bool = false
     private var lastParamsSnapshot: BHUniforms = BHUniforms()
-    private var renderScale: Float = 1.0
     private var smoothedFPS: Double = 0
+
+    // Camera smoothing
+    private var displayedYaw: Float = 0.5
+    private var displayedPitch: Float = 0.5
+    private var displayedZoom: Float = 100.0
+    private var cameraInitialized: Bool = false
+    /// Critical-damping exponent. Larger = stiffer; ~12 settles in ~250 ms.
+    private let cameraDamping: Float = 12.0
+
+    // Adaptive resolution PID (matches web's `useAdaptiveResolution` constants)
+    private var dynamicScale: Float = 1.0
+    private var pidIntegral: Double = 0
+    private var pidPrevError: Double = 0
+    private let pidKp: Double = 0.025
+    private let pidKi: Double = 0.005
+    private let pidKd: Double = 0.04
+    /// Target FPS. PID acts on the error in Hz.
+    private let pidTargetFPS: Double = 60.0
+    /// Don't react to errors smaller than this — avoids flapping.
+    private let pidDeadzoneFPS: Double = 5.0
+    private let dynamicScaleMin: Float = 0.5
+    private let dynamicScaleMax: Float = 1.0
 
     // External params
     var params: BlackHoleParameters
@@ -62,8 +96,9 @@ final class Renderer: NSObject, MTKViewDelegate {
         guard let library = device.makeDefaultLibrary() else {
             fatalError("Default Metal library missing.")
         }
+        self.library = library
+        self.drawableFormat = mtkView.colorPixelFormat
 
-        // Sampler used by every post-processing pass that needs bilinear sampling.
         let samplerDesc = MTLSamplerDescriptor()
         samplerDesc.minFilter = .linear
         samplerDesc.magFilter = .linear
@@ -74,11 +109,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
         self.bilinearSampler = sampler
 
-        // Build pipelines
-        self.scenePipeline = Renderer.makePipeline(
-            device: device, library: library,
-            vertex: "bh_vs", fragment: "bh_fs",
-            colorFormat: .rgba16Float, label: "scene")
+        // Post pipelines (no function constants).
         self.taaPipeline = Renderer.makePipeline(
             device: device, library: library,
             vertex: "pp_vs", fragment: "taa_fs",
@@ -98,7 +129,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         self.compositePipeline = Renderer.makePipeline(
             device: device, library: library,
             vertex: "pp_vs", fragment: "composite_fs",
-            colorFormat: mtkView.colorPixelFormat, label: "composite")
+            colorFormat: drawableFormat, label: "composite")
         self.copyPipeline = Renderer.makePipeline(
             device: device, library: library,
             vertex: "pp_vs", fragment: "copy_fs",
@@ -138,6 +169,52 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
     }
 
+    /// Build (or fetch) the scene pipeline specialized for the given flag mask.
+    private func scenePipeline(forMask mask: UInt8) -> MTLRenderPipelineState {
+        if let cached = scenePipelines[mask] { return cached }
+
+        let cv = MTLFunctionConstantValues()
+        for (idx, bit) in (0..<7).enumerated() {
+            var on = (mask >> bit) & 1 == 1
+            cv.setConstantValue(&on, type: .bool, index: idx)
+        }
+
+        let vfn: MTLFunction
+        let ffn: MTLFunction
+        do {
+            vfn = library.makeFunction(name: "bh_vs")!  // bh_vs has no function constants
+            ffn = try library.makeFunction(name: "bh_fs", constantValues: cv)
+        } catch {
+            fatalError("Failed to specialize scene fragment: \(error)")
+        }
+
+        let desc = MTLRenderPipelineDescriptor()
+        desc.label = "scene-\(mask)"
+        desc.vertexFunction = vfn
+        desc.fragmentFunction = ffn
+        desc.colorAttachments[0].pixelFormat = .rgba16Float
+        do {
+            let pso = try device.makeRenderPipelineState(descriptor: desc)
+            scenePipelines[mask] = pso
+            return pso
+        } catch {
+            fatalError("Failed to build scene pipeline (mask=\(mask)): \(error)")
+        }
+    }
+
+    private func currentSceneMask() -> UInt8 {
+        // Bit positions match function_constant indices in BlackHole.metal.
+        var m: UInt8 = 0
+        if params.enableLensing     { m |= 1 << 0 }
+        if params.enableDisk        { m |= 1 << 1 }
+        if params.enableDoppler     { m |= 1 << 2 }
+        if params.enablePhotonGlow  { m |= 1 << 3 }
+        if params.enableStars       { m |= 1 << 4 }
+        if params.enableJets        { m |= 1 << 5 }
+        if params.showRedshift      { m |= 1 << 6 }
+        return m
+    }
+
     // MARK: - MTKViewDelegate
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -149,19 +226,46 @@ final class Renderer: NSObject, MTKViewDelegate {
               let descriptor = view.currentRenderPassDescriptor
         else { return }
 
-        // Frame timing: drive auto-spin and FPS readout from the real wall clock.
-        // MTKView calls draw() on the main thread, so we can mutate params directly.
+        // Frame timing & smoothed FPS for HUD + adaptive scale + auto-spin.
         let now = CFAbsoluteTimeGetCurrent()
         let dt = max(1.0 / 240.0, min(now - lastFrameTime, 1.0 / 15.0))
         lastFrameTime = now
         smoothedFPS = smoothedFPS * 0.92 + (1.0 / dt) * 0.08
         params.fps = smoothedFPS
-        if abs(params.autoSpin) > 1e-5 {
-            // 1 yaw unit = full 2π revolution → divide rate by 2π to map to [0,1].
+        params.frameTimeMs = dt * 1000.0
+        params.effectiveRenderScale = rtScale
+
+        // Auto-spin: pause while user is interacting with the camera.
+        let interacting = (now - params.lastInteraction) < 0.6
+        if !interacting && abs(params.autoSpin) > 1e-5 {
             let next = params.yaw + Float(dt) * params.autoSpin / (2.0 * .pi)
             var wrapped = next.truncatingRemainder(dividingBy: 1.0)
             if wrapped < 0 { wrapped += 1.0 }
             params.yaw = wrapped
+        }
+
+        // Camera smoothing — exponential blend toward target.
+        if !cameraInitialized {
+            displayedYaw = params.yaw
+            displayedPitch = params.pitch
+            displayedZoom = params.zoom
+            cameraInitialized = true
+        }
+        let blend = 1.0 - exp(-cameraDamping * Float(dt))
+        displayedPitch += (params.pitch - displayedPitch) * blend
+        displayedZoom  += (params.zoom  - displayedZoom)  * blend
+        // Yaw needs shortest-arc wrap.
+        var dyaw = (params.yaw - displayedYaw).truncatingRemainder(dividingBy: 1.0)
+        if dyaw >  0.5 { dyaw -= 1.0 }
+        if dyaw < -0.5 { dyaw += 1.0 }
+        var nextYaw = displayedYaw + dyaw * blend
+        nextYaw = nextYaw.truncatingRemainder(dividingBy: 1.0)
+        if nextYaw < 0 { nextYaw += 1.0 }
+        displayedYaw = nextYaw
+
+        // Adaptive resolution PID (after FPS smooths in).
+        if smoothedFPS > 5 {
+            updateDynamicScale(dt: dt)
         }
 
         let drawableSize = view.drawableSize
@@ -172,7 +276,6 @@ final class Renderer: NSObject, MTKViewDelegate {
               history.count == 2 else { return }
 
         let preset = params.preset
-        renderScale = preset.renderScale
         let bloomEnabled = preset.bloomEnabled
         let taaEnabled = preset.taaEnabled
 
@@ -189,15 +292,16 @@ final class Renderer: NSObject, MTKViewDelegate {
         guard let cb = queue.makeCommandBuffer() else { return }
         cb.label = "BlackHole frame \(frameIndex)"
 
-        // 1. Scene pass -> sceneRT
+        // 1. Scene pass -> sceneRT (function-constant specialized pipeline).
+        let scenePSO = scenePipeline(forMask: currentSceneMask())
         renderToTexture(commandBuffer: cb, target: sceneRT, label: "scene") { enc in
-            enc.setRenderPipelineState(scenePipeline)
+            enc.setRenderPipelineState(scenePSO)
             enc.setVertexBuffer(uniformsBuffer, offset: 0, index: 0)
             enc.setFragmentBuffer(uniformsBuffer, offset: 0, index: 0)
             enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         }
 
-        // 2. TAA pass (or pass-through copy when disabled)
+        // 2. TAA pass (or pass-through copy when disabled).
         let resolvedHistoryIdx = historyIdx
         let prevHistoryIdx = 1 - historyIdx
         let resolved = history[resolvedHistoryIdx]
@@ -222,7 +326,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         historyIdx = 1 - historyIdx
         historyValid = true
 
-        // 3-5. Bloom (skipped on low presets)
+        // 3-5. Bloom (skipped on low presets).
         if bloomEnabled {
             renderToTexture(commandBuffer: cb, target: bloomBright, label: "bright") { enc in
                 enc.setRenderPipelineState(brightPipeline)
@@ -245,7 +349,7 @@ final class Renderer: NSObject, MTKViewDelegate {
             }
         }
 
-        // 6. Composite -> drawable
+        // 6. Composite -> drawable.
         descriptor.colorAttachments[0].loadAction = .clear
         descriptor.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
         guard let enc = cb.makeRenderCommandEncoder(descriptor: descriptor) else { return }
@@ -262,6 +366,34 @@ final class Renderer: NSObject, MTKViewDelegate {
         cb.commit()
 
         frameIndex &+= 1
+    }
+
+    // MARK: - Adaptive resolution
+
+    private func updateDynamicScale(dt: TimeInterval) {
+        let error = pidTargetFPS - smoothedFPS
+        guard abs(error) > pidDeadzoneFPS else { return }
+        pidIntegral += error * dt
+        // Anti-windup
+        pidIntegral = min(max(pidIntegral, -100.0), 100.0)
+        let derivative = (error - pidPrevError) / max(dt, 1e-3)
+        pidPrevError = error
+        // Positive error = below target → reduce scale.
+        let correction = pidKp * error + pidKi * pidIntegral + pidKd * derivative
+        let nextScale = Float(Double(dynamicScale) - correction * 0.02)
+        let clamped = min(max(nextScale, dynamicScaleMin), dynamicScaleMax)
+        dynamicScale = clamped
+
+        // Reallocate RTs only when crossing a 0.05 quantization band, so we
+        // don't thrash the texture allocator.
+        let effective = quantize(dynamicScale * params.preset.renderScale)
+        if abs(effective - rtScale) > 0.001 {
+            rebuildOffscreenTargets(for: rtSize)
+        }
+    }
+
+    private func quantize(_ x: Float) -> Float {
+        return (x * 20.0).rounded() / 20.0   // 0.05 step
     }
 
     // MARK: - Helpers
@@ -286,8 +418,10 @@ final class Renderer: NSObject, MTKViewDelegate {
     private func rebuildOffscreenTargets(for size: CGSize) {
         guard size.width > 0, size.height > 0 else { return }
         rtSize = size
-        let scaledW = max(1, Int(Float(size.width)  * params.preset.renderScale))
-        let scaledH = max(1, Int(Float(size.height) * params.preset.renderScale))
+        let effectiveScale = quantize(dynamicScale * params.preset.renderScale)
+        rtScale = effectiveScale
+        let scaledW = max(1, Int(Float(size.width)  * effectiveScale))
+        let scaledH = max(1, Int(Float(size.height) * effectiveScale))
 
         sceneRT = makeRT(w: scaledW, h: scaledH, label: "sceneRT")
         history = [
@@ -316,10 +450,10 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     private func makeUniforms(view: MTKView) -> BHUniforms {
         let size = view.drawableSize
-        let renderW = max(1.0, Float(size.width)  * params.preset.renderScale)
-        let renderH = max(1.0, Float(size.height) * params.preset.renderScale)
+        let effectiveScale = rtScale
+        let renderW = max(1.0, Float(size.width)  * effectiveScale)
+        let renderH = max(1.0, Float(size.height) * effectiveScale)
 
-        // Halton(2,3) jitter for sub-pixel TAA sampling.
         let h = halton(index: Int(frameIndex) + 1)
         let jitter = simd_float2((h.x - 0.5), (h.y - 0.5)) * 0.8
 
@@ -330,11 +464,13 @@ final class Renderer: NSObject, MTKViewDelegate {
         u.spin               = params.spin
         u.diskDensity        = params.diskDensity
         u.diskTemp           = params.diskTemp
-        u.zoom               = params.zoom
-        u.mouse              = simd_float2(params.yaw, params.pitch)
+        u.zoom               = displayedZoom
+        u.mouse              = simd_float2(displayedYaw, displayedPitch)
         u.lensingStrength    = params.lensingStrength
         u.diskSize           = params.diskSize
         u.maxRaySteps        = Int32(params.preset.maxRaySteps)
+        // Feature flags now live in function constants; the int fields stay as
+        // documentation only (some shaders still read them in non-hot paths).
         u.enableDoppler      = params.enableDoppler ? 1 : 0
         u.enableJets         = params.enableJets ? 1 : 0
         u.enableLensing      = params.enableLensing ? 1 : 0

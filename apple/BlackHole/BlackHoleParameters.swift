@@ -18,9 +18,12 @@ final class BlackHoleParameters: ObservableObject {
     @Published var diskScaleHeight: Float = 0.2
 
     // Camera
-    @Published var zoom: Float = 30.0
+    @Published var zoom: Float = 100.0
     @Published var yaw: Float = 0.5    // 0..1 mapped to 0..2π
-    @Published var pitch: Float = 0.5  // 0..1 mapped to 0..π
+    /// 0..1 mapped to 0..π. Default 0.539 ≈ web's `verticalAngle: 97°`
+    /// (slightly below equator) — gives a cinematic tilt instead of dead-flat
+    /// edge-on view.
+    @Published var pitch: Float = 0.539
     /// Continuous yaw drift in rad/s. Web default 0.005 rad/s ("Cam Auto-Pan").
     @Published var autoSpin: Float = 0.005
 
@@ -38,6 +41,15 @@ final class BlackHoleParameters: ObservableObject {
     @Published var enableJets: Bool = true
     @Published var showRedshift: Bool = false
 
-    // Telemetry
+    // Telemetry (mutated by Renderer every frame)
     @Published var fps: Double = 0
+    @Published var frameTimeMs: Double = 0
+    /// preset.renderScale × adaptive PID factor. Lets the HUD show the actual
+    /// resolution the GPU is rendering at.
+    @Published var effectiveRenderScale: Float = 1.0
+
+    /// Wall-clock time of the most recent user interaction (drag / pinch / scroll).
+    /// Renderer uses this to pause auto-spin briefly so the camera doesn't fight
+    /// the user.
+    var lastInteraction: TimeInterval = 0
 }

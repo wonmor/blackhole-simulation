@@ -19,6 +19,8 @@
 		95C9B85C8CFD1214BC42B11E /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8516951A35DF5BAC2068FF56 /* ContentView.swift */; };
 		A839DE4408696F05787165D2 /* Postprocess.metal in Sources */ = {isa = PBXBuildFile; fileRef = 98202AB7F164C5CCC41EC1CE /* Postprocess.metal */; };
 		A83DDDFB57270785BD8D4EE3 /* ControlPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA29C6AB0EA23F31509EF7AD /* ControlPanel.swift */; };
+		AB44C8F895407B51CF04DCF1 /* HUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B22B6FE2DEE0E1FAE3C5820 /* HUDView.swift */; };
+		AC74D175AC429F3B5487A02E /* HUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B22B6FE2DEE0E1FAE3C5820 /* HUDView.swift */; };
 		C33C634C057A0EBBB885FD3A /* BlackHoleParameters.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD327117E66302BD38F7AEAD /* BlackHoleParameters.swift */; };
 		CDF59D713DF376322D3589E3 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8516951A35DF5BAC2068FF56 /* ContentView.swift */; };
 		D8C7C6A2311B938EBE7A50D6 /* macOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D877B3FC4148183FBA367728 /* macOSApp.swift */; };
@@ -34,6 +36,7 @@
 		13CC2436F650CACEF9C12C44 /* QualityPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QualityPreset.swift; sourceTree = "<group>"; };
 		2063DC9DB076023B1EDB0B0B /* iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSApp.swift; sourceTree = "<group>"; };
 		228A3247AF1FD5E3C0B7DF90 /* Gravitas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gravitas.swift; sourceTree = "<group>"; };
+		6B22B6FE2DEE0E1FAE3C5820 /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
 		8516951A35DF5BAC2068FF56 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		886592F7CEC2BFA3D593F571 /* BlackHole-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "BlackHole-Bridging-Header.h"; sourceTree = "<group>"; };
 		98202AB7F164C5CCC41EC1CE /* Postprocess.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Postprocess.metal; sourceTree = "<group>"; };
@@ -65,6 +68,7 @@
 				FD327117E66302BD38F7AEAD /* BlackHoleParameters.swift */,
 				8516951A35DF5BAC2068FF56 /* ContentView.swift */,
 				CA29C6AB0EA23F31509EF7AD /* ControlPanel.swift */,
+				6B22B6FE2DEE0E1FAE3C5820 /* HUDView.swift */,
 				B07C58C81249192B2E4CC996 /* MetalView.swift */,
 				13CC2436F650CACEF9C12C44 /* QualityPreset.swift */,
 				EE0243FD634828B9D98A5EB1 /* Bridge */,
@@ -215,6 +219,7 @@
 				CDF59D713DF376322D3589E3 /* ContentView.swift in Sources */,
 				A83DDDFB57270785BD8D4EE3 /* ControlPanel.swift in Sources */,
 				F82548E56AC34B875E8790B9 /* Gravitas.swift in Sources */,
+				AC74D175AC429F3B5487A02E /* HUDView.swift in Sources */,
 				5D3F7A2D3C635D755880BE7A /* MetalView.swift in Sources */,
 				A839DE4408696F05787165D2 /* Postprocess.metal in Sources */,
 				E83EE384723E7716CC405079 /* QualityPreset.swift in Sources */,
@@ -232,6 +237,7 @@
 				95C9B85C8CFD1214BC42B11E /* ContentView.swift in Sources */,
 				6E122D544EA53EF9E3AA7B7D /* ControlPanel.swift in Sources */,
 				1F2844246F448800945F9A99 /* Gravitas.swift in Sources */,
+				AB44C8F895407B51CF04DCF1 /* HUDView.swift in Sources */,
 				7AB2137D911BCED6C23F0DA9 /* MetalView.swift in Sources */,
 				5272AD76B4E1584C99F12A27 /* Postprocess.metal in Sources */,
 				452172F680ACEB66D2624295 /* QualityPreset.swift in Sources */,

@@ -58,7 +58,8 @@ struct MetalView: PlatformViewRepresentable {
             guard let params = params else { return }
             // Negative dy = scroll up = zoom in.
             let next = params.zoom * Float(1.0 - dy * 0.01)
-            params.zoom = min(max(next, 3.0), 40.0)
+            params.zoom = min(max(next, 1.5), 100.0)
+            params.lastInteraction = CFAbsoluteTimeGetCurrent()
         }
         return view
     }

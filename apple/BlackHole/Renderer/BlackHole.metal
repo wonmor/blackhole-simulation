@@ -24,6 +24,16 @@ constant float DISK_TURB_DETAIL  = 2.5;      // accretion.turbulenceDetail
 constant float DISK_TIME_SCALE   = 0.12;     // accretion.timeScale
 constant float DISK_DENSITY_FALL = 0.25;     // accretion.densityFalloff
 
+// Function-constant feature flags. Specialized at pipeline-build time so
+// the per-step branches inside the ray loop fold to constants and disappear.
+constant bool ENABLE_LENSING       [[function_constant(0)]];
+constant bool ENABLE_DISK          [[function_constant(1)]];
+constant bool ENABLE_DOPPLER       [[function_constant(2)]];
+constant bool ENABLE_PHOTON_GLOW   [[function_constant(3)]];
+constant bool ENABLE_STARS         [[function_constant(4)]];
+constant bool ENABLE_JETS          [[function_constant(5)]];
+constant bool ENABLE_REDSHIFT_VIEW [[function_constant(6)]];
+
 // ---------- Vertex ----------
 
 struct VSOut {
@@ -283,7 +293,7 @@ inline float3 sample_disk(thread float3 &p, float3 p_prev, thread float3 &v,
     // Doppler factor δ = 1 / (u_t (1 - Ω L))
     float delta = 1.0 / max(0.01, u_t * (1.0 - Omega * L_photon));
 
-    float beaming = (u.enableDoppler != 0) ? max(0.01, pow(delta, 3.5)) : 1.0;
+    float beaming = ENABLE_DOPPLER ? max(0.01, pow(delta, 3.5)) : 1.0;
 
     // Novikov-Thorne temperature with zero-torque inner boundary
     float isco_r = clamp(isco / sampleR, 0.0, 1.0);
@@ -373,6 +383,10 @@ fragment float4 bh_fs(VSOut in [[stage_in]],
     float maxRedshift = 0.0;
     bool redshiftInit = false;
 
+    // Inner-shadow flag (Bardeen 1973): rays with impact param < rh are captured
+    // in any Kerr geometry. We mark the flag so the final composition can blank
+    // the background, but we still run the integration loop — those rays still
+    // cross the disk plane on their way to the horizon and contribute emission.
     float impact = length(cross(p, v));
     if (impact < rh * 0.9) hitHorizon = true;
 
@@ -385,11 +399,37 @@ fragment float4 bh_fs(VSOut in [[stage_in]],
 
     int photonCrossings = 0;
     float prevY = p.y;
-    for (int i = 0; i < maxSteps && !hitHorizon; ++i) {
+
+    // Far-field threshold: beyond this, gravity falls below ~M / 4900 ≈ 2e-4 per
+    // unit M, so a ray's deflection is sub-pixel. Skip kerr_accel + disk + photon
+    // tracking and coast at the maximum step size. Threshold scales with the user
+    // disk size so a large disk still gets full physics through its outer edge.
+    float diskOuterApprox = max(M * u.diskSize, isco * 1.1);
+    float farFieldR = max(diskOuterApprox * 1.5, rph * 5.0);
+
+    // NOTE: do NOT short-circuit on `hitHorizon` here — pre-culled axial rays
+    // still need to integrate so they pick up disk emission before reaching
+    // the horizon. The loop's own `r < rh * HORIZON_THRESHOLD` check breaks
+    // out at the right time.
+    bool loopHorizonHit = false;
+    for (int i = 0; i < maxSteps && !loopHorizonHit; ++i) {
         p_prev = p;
         float r = length(p);
-        if (r < rh * HORIZON_THRESHOLD) { hitHorizon = true; break; }
+        if (r < rh * HORIZON_THRESHOLD) {
+            hitHorizon = true;
+            loopHorizonHit = true;
+            break;
+        }
         if (r > MAX_DIST) break;
+
+        // Far-field shortcut: coast in a straight line through empty space.
+        if (r > farFieldR) {
+            // Big step. If we're already moving outward beyond 2× the disk,
+            // the ray is escaping for good — break early.
+            if (r > diskOuterApprox * 2.0 && dot(p, v) > 0.0) break;
+            p += v * (MAX_STEP * 4.0);
+            continue;
+        }
 
         // Adaptive step size with curvature awareness
         float distFactor = 1.0 + r * 0.05;
@@ -407,7 +447,7 @@ fragment float4 bh_fs(VSOut in [[stage_in]],
         // Kerr geodesic acceleration + ZAMO velocity rotation
         float3 accel = float3(0.0);
         float omega = 0.0;
-        if (u.enableLensing != 0) {
+        if (ENABLE_LENSING) {
             KerrAccel kA = kerr_accel(p, v, M, a);
             accel = kA.accel * u.lensingStrength;
             omega = kA.omega * u.frameDragStrength;
@@ -420,7 +460,7 @@ fragment float4 bh_fs(VSOut in [[stage_in]],
         p += v * currentDt + 0.5 * accel * currentDt * currentDt;
         float r_new = length(p);
 
-        if (u.enableLensing != 0 && alpha < 0.95) {
+        if (ENABLE_LENSING && alpha < 0.95) {
             KerrAccel kB = kerr_accel(p, v, M, a);
             float3 accelNew = kB.accel * u.lensingStrength;
             v += 0.5 * (accel + accelNew) * currentDt;
@@ -434,24 +474,24 @@ fragment float4 bh_fs(VSOut in [[stage_in]],
         prevY = p.y;
 
         // Redshift tracking (Schwarzschild proxy)
-        if (u.enableRedshiftView != 0) {
+        if (ENABLE_REDSHIFT_VIEW) {
             float pot = sqrt(max(0.0, 1.0 - 2.0 * M / max(length(p), 1e-3)));
             if (!redshiftInit) { maxRedshift = pot; redshiftInit = true; }
             else maxRedshift = min(maxRedshift, pot);
         }
 
         // Disk emission
-        if (u.enableDisk != 0) {
+        if (ENABLE_DISK) {
             acc += sample_disk(p, p_prev, v, length(p), isco, M, a, currentDt, u, alpha);
         }
-        if (u.enableJets != 0) {
+        if (ENABLE_JETS) {
             acc += sample_jet(p, v, length(p), rh, currentDt, u.time, alpha);
         }
         if (alpha > 0.99) break;
     }
 
     // Redshift overlay
-    if (u.enableRedshiftView != 0) {
+    if (ENABLE_REDSHIFT_VIEW) {
         float val = hitHorizon ? 0.0 : maxRedshift;
         float3 heat = mix(float3(0.0), float3(1, 0, 0), smoothstep(0.0, 0.3, val));
         heat = mix(heat, float3(1, 1, 0), smoothstep(0.3, 0.7, val));
@@ -461,10 +501,10 @@ fragment float4 bh_fs(VSOut in [[stage_in]],
 
     // Background + photon ring + ergosphere
     float3 background = float3(0.0);
-    if (u.enableStars != 0 && !hitHorizon) background = starfield(v, u.time);
+    if (ENABLE_STARS && !hitHorizon) background = starfield(v, u.time);
 
     float3 photon = float3(0.0);
-    if (u.enablePhotonGlow != 0 && !hitHorizon) {
+    if (ENABLE_PHOTON_GLOW && !hitHorizon) {
         float distToRing = abs(length(p) - rph);
         float directRing = exp(-distToRing * 40.0) * 1.8 * u.lensingStrength;
         float higherOrderRing = 0.0;
