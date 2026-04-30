@@ -12,7 +12,9 @@ struct BlackHoleiOSApp: App {
                         subscription: subscription,
                         pomodoro: pomodoro)
                 .preferredColorScheme(.dark)
-                .ignoresSafeArea()
+                // NOTE: .ignoresSafeArea() is applied INSIDE ContentView (on the
+                // MetalView only) so the foreground HUD + ControlPanel respect
+                // the iPhone's notch / Dynamic Island / status bar.
         }
     }
 }

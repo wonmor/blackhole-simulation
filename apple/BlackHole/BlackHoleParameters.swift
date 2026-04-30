@@ -20,10 +20,12 @@ final class BlackHoleParameters: ObservableObject {
     @Published var diskSize: Float = 50.0                  { didSet { persist("diskSize", diskSize) } }
     @Published var diskScaleHeight: Float = 0.2            { didSet { persist("diskScale", diskScaleHeight) } }
 
-    // MARK: - Camera
-    @Published var zoom: Float = 100.0                     { didSet { persist("zoom", zoom) } }
-    @Published var yaw: Float = 0.5                        { didSet { persist("yaw", yaw) } }
-    @Published var pitch: Float = 0.539                    { didSet { persist("pitch", pitch) } }
+    // MARK: - Camera (intentionally NOT persisted — yaw drifts every frame
+    // via auto-spin, persisting it would write to UserDefaults 60×/sec and
+    // also invalidate the TAA history each frame → visible flicker)
+    @Published var zoom: Float = 100.0
+    @Published var yaw: Float = 0.5
+    @Published var pitch: Float = 0.539
     @Published var autoSpin: Float = 0.005                 { didSet { persist("autoSpin", autoSpin) } }
 
     // MARK: - Pipeline
@@ -55,6 +57,8 @@ final class BlackHoleParameters: ObservableObject {
     private var loading: Bool = false
 
     init() {
+        // Default quality preset is auto-detected per device class.
+        self.preset = QualityPreset.autoDetected
         load()
     }
 
@@ -77,9 +81,7 @@ final class BlackHoleParameters: ObservableObject {
         if let v = d.object(forKey: Self.prefix + "diskTemp")    as? Float { diskTemp = v }
         if let v = d.object(forKey: Self.prefix + "diskSize")    as? Float { diskSize = v }
         if let v = d.object(forKey: Self.prefix + "diskScale")   as? Float { diskScaleHeight = v }
-        if let v = d.object(forKey: Self.prefix + "zoom")        as? Float { zoom = v }
-        if let v = d.object(forKey: Self.prefix + "yaw")         as? Float { yaw = v }
-        if let v = d.object(forKey: Self.prefix + "pitch")       as? Float { pitch = v }
+        // Camera pose intentionally NOT loaded — see "Camera" section above.
         if let v = d.object(forKey: Self.prefix + "autoSpin")    as? Float { autoSpin = v }
         if let raw = d.string(forKey: Self.prefix + "preset"),
            let p = QualityPreset(rawValue: raw) { preset = p }

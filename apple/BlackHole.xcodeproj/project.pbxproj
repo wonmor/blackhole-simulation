@@ -8,13 +8,21 @@
 
 /* Begin PBXBuildFile section */
 		00935CDF786709284DA0BF1B /* BlackHole.metal in Sources */ = {isa = PBXBuildFile; fileRef = F7CB23EAF404BEF37969E5BA /* BlackHole.metal */; };
+		0273C7B002D180F842D5C02C /* BlackHoleParameters.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD327117E66302BD38F7AEAD /* BlackHoleParameters.swift */; };
+		0313DD307A72C2C2A673FBDC /* ImmersiveRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29BEC6B796F2572E687DEA19 /* ImmersiveRenderer.swift */; };
+		05D5CC0F0AE636C5C8E238FC /* ImmersiveScene.metal in Sources */ = {isa = PBXBuildFile; fileRef = 5B7164F8C63CCFB0AD312A80 /* ImmersiveScene.metal */; };
+		08846C9EDD81AA09AD3DDEF7 /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFFE7DD2F5FD94877794B512 /* Renderer.swift */; };
 		0F6B02087E9DD6DEB615BB74 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = ACC9B3C45605DEDD23F39963 /* PrivacyInfo.xcprivacy */; };
 		145116860D5A26CEE03394A8 /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74A591C534F0D81CB1BC28FD /* SubscriptionManager.swift */; };
+		1911572044E831B11D4D43EC /* VisionControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD9BA2C2D5BA421AD48B304A /* VisionControlsView.swift */; };
 		1F2844246F448800945F9A99 /* Gravitas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 228A3247AF1FD5E3C0B7DF90 /* Gravitas.swift */; };
+		22A7ED9133BEA9CF0A8E1DC7 /* visionOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67C0B12C9E38749A66148D98 /* visionOSApp.swift */; };
 		2A223A3E46F20A1BEBC85384 /* PaywallSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94971C7B80C0B86890A7A823 /* PaywallSheet.swift */; };
 		2C931596D87616352F150863 /* PomodoroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3026567985814163C7FA34BF /* PomodoroView.swift */; };
+		2FA030A848553CFAABCD0A5F /* BlackHole.metal in Sources */ = {isa = PBXBuildFile; fileRef = F7CB23EAF404BEF37969E5BA /* BlackHole.metal */; };
 		3216A3C93A9B10077BD95A6C /* AboutSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AC73052E737148B60773EDA /* AboutSheet.swift */; };
 		452172F680ACEB66D2624295 /* QualityPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13CC2436F650CACEF9C12C44 /* QualityPreset.swift */; };
+		495CB10CBBE976B183ABBBA2 /* Scenarios.swift in Sources */ = {isa = PBXBuildFile; fileRef = 385F1F323863C33A518CFC90 /* Scenarios.swift */; };
 		4A9F6307104030822CEB7FAE /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFFE7DD2F5FD94877794B512 /* Renderer.swift */; };
 		4B958B2B76DBD2133B376987 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA63F959520F6119D5606374 /* Assets.xcassets */; };
 		5272AD76B4E1584C99F12A27 /* Postprocess.metal in Sources */ = {isa = PBXBuildFile; fileRef = 98202AB7F164C5CCC41EC1CE /* Postprocess.metal */; };
@@ -23,13 +31,19 @@
 		59B060E7778F6E712F54014D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 04C9180D828CD070A4EE8437 /* LaunchScreen.storyboard */; };
 		5ABE00F7E3B50DD51DA1CF53 /* AppController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 414ED71E960453A3B70A5632 /* AppController.swift */; };
 		5D3F7A2D3C635D755880BE7A /* MetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B07C58C81249192B2E4CC996 /* MetalView.swift */; };
+		5D5A75D72DF1AB56D394583C /* AboutSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AC73052E737148B60773EDA /* AboutSheet.swift */; };
 		6602CB2FC029B2F356975F94 /* Scenarios.swift in Sources */ = {isa = PBXBuildFile; fileRef = 385F1F323863C33A518CFC90 /* Scenarios.swift */; };
 		6A0A5D49DB5FA8110C617EAC /* MenuBarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91148CBE0EBE1FB5F544E907 /* MenuBarContent.swift */; };
 		6E122D544EA53EF9E3AA7B7D /* ControlPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA29C6AB0EA23F31509EF7AD /* ControlPanel.swift */; };
+		73690FFDD1D84E6DE37FE1EA /* Postprocess.metal in Sources */ = {isa = PBXBuildFile; fileRef = 98202AB7F164C5CCC41EC1CE /* Postprocess.metal */; };
 		74C7FE6AF55575536DD6BFAE /* WallpaperOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 306AD48EBE39A6818CEF828F /* WallpaperOverlay.swift */; };
 		7AB2137D911BCED6C23F0DA9 /* MetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B07C58C81249192B2E4CC996 /* MetalView.swift */; };
 		7C6ED339F260D0390656376D /* AboutSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AC73052E737148B60773EDA /* AboutSheet.swift */; };
 		7E3C77BA3757E00CD5BA996B /* PomodoroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3026567985814163C7FA34BF /* PomodoroView.swift */; };
+		7E785BBFC0753AB8CB05FC11 /* PomodoroTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C536C9AE14001F0686AEF34 /* PomodoroTimer.swift */; };
+		7EE2E558624B090736EE9BDB /* ControlPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA29C6AB0EA23F31509EF7AD /* ControlPanel.swift */; };
+		86F5C708878923FF3B4E24E1 /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74A591C534F0D81CB1BC28FD /* SubscriptionManager.swift */; };
+		8CBCED5C9DEB36A8D0BFB09D /* HUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B22B6FE2DEE0E1FAE3C5820 /* HUDView.swift */; };
 		928D723A448C0FCE1E483F30 /* PomodoroTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C536C9AE14001F0686AEF34 /* PomodoroTimer.swift */; };
 		950AB0F930740072F42899F4 /* iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2063DC9DB076023B1EDB0B0B /* iOSApp.swift */; };
 		95C9B85C8CFD1214BC42B11E /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8516951A35DF5BAC2068FF56 /* ContentView.swift */; };
@@ -39,16 +53,21 @@
 		A83DDDFB57270785BD8D4EE3 /* ControlPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA29C6AB0EA23F31509EF7AD /* ControlPanel.swift */; };
 		AB44C8F895407B51CF04DCF1 /* HUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B22B6FE2DEE0E1FAE3C5820 /* HUDView.swift */; };
 		AC74D175AC429F3B5487A02E /* HUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B22B6FE2DEE0E1FAE3C5820 /* HUDView.swift */; };
+		AF6E96C28DAB2E20ECC7B12D /* PomodoroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3026567985814163C7FA34BF /* PomodoroView.swift */; };
+		BF5E894EB0619BC5A716BF23 /* Gravitas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 228A3247AF1FD5E3C0B7DF90 /* Gravitas.swift */; };
 		C289B729EE7A6DC35A78D92F /* PaywallSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94971C7B80C0B86890A7A823 /* PaywallSheet.swift */; };
 		C33C634C057A0EBBB885FD3A /* BlackHoleParameters.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD327117E66302BD38F7AEAD /* BlackHoleParameters.swift */; };
 		C731A45B2ED2610D29CC4234 /* WallpaperSaver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D13F475A5E98679A99B94A9 /* WallpaperSaver.swift */; };
 		CDF59D713DF376322D3589E3 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8516951A35DF5BAC2068FF56 /* ContentView.swift */; };
+		D8A3D7BF1B84C8F1A64FE028 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA63F959520F6119D5606374 /* Assets.xcassets */; };
 		D8C7C6A2311B938EBE7A50D6 /* macOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D877B3FC4148183FBA367728 /* macOSApp.swift */; };
 		DEA1611520F03C045CFDD434 /* BlackHole.metal in Sources */ = {isa = PBXBuildFile; fileRef = F7CB23EAF404BEF37969E5BA /* BlackHole.metal */; };
 		DED631FFEF28D2F74E076767 /* BlackHoleParameters.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD327117E66302BD38F7AEAD /* BlackHoleParameters.swift */; };
 		E83EE384723E7716CC405079 /* QualityPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13CC2436F650CACEF9C12C44 /* QualityPreset.swift */; };
 		F35B3F8C56438C7665081A90 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 138CE173BF3D9CE425A1BA87 /* PrivacyInfo.xcprivacy */; };
+		F4957E4D0F8DF3FC99A035B0 /* QualityPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13CC2436F650CACEF9C12C44 /* QualityPreset.swift */; };
 		F69ECF7C1E9B3B8CD6F79886 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA63F959520F6119D5606374 /* Assets.xcassets */; };
+		F769C40909B59841EEFFF714 /* PaywallSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94971C7B80C0B86890A7A823 /* PaywallSheet.swift */; };
 		F82548E56AC34B875E8790B9 /* Gravitas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 228A3247AF1FD5E3C0B7DF90 /* Gravitas.swift */; };
 		FDEC3E7865D1BB5CB3B5AB7B /* Scenarios.swift in Sources */ = {isa = PBXBuildFile; fileRef = 385F1F323863C33A518CFC90 /* Scenarios.swift */; };
 		FF4B75BF7BF4EE823CF370B5 /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFFE7DD2F5FD94877794B512 /* Renderer.swift */; };
@@ -57,17 +76,21 @@
 /* Begin PBXFileReference section */
 		04C9180D828CD070A4EE8437 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		0A1996A31D48334802F73F4C /* BlackHole-macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "BlackHole-macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0A65A62FA186A73BEDC1A002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		0C536C9AE14001F0686AEF34 /* PomodoroTimer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PomodoroTimer.swift; sourceTree = "<group>"; };
 		0D13F475A5E98679A99B94A9 /* WallpaperSaver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperSaver.swift; sourceTree = "<group>"; };
-		138CE173BF3D9CE425A1BA87 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		138CE173BF3D9CE425A1BA87 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		13CC2436F650CACEF9C12C44 /* QualityPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QualityPreset.swift; sourceTree = "<group>"; };
 		2063DC9DB076023B1EDB0B0B /* iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSApp.swift; sourceTree = "<group>"; };
 		228A3247AF1FD5E3C0B7DF90 /* Gravitas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gravitas.swift; sourceTree = "<group>"; };
 		23B9F74FA3C20F5E42CE28EC /* WallpaperManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperManager.swift; sourceTree = "<group>"; };
+		29BEC6B796F2572E687DEA19 /* ImmersiveRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersiveRenderer.swift; sourceTree = "<group>"; };
 		3026567985814163C7FA34BF /* PomodoroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PomodoroView.swift; sourceTree = "<group>"; };
 		306AD48EBE39A6818CEF828F /* WallpaperOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperOverlay.swift; sourceTree = "<group>"; };
 		385F1F323863C33A518CFC90 /* Scenarios.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scenarios.swift; sourceTree = "<group>"; };
 		414ED71E960453A3B70A5632 /* AppController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppController.swift; sourceTree = "<group>"; };
+		5B7164F8C63CCFB0AD312A80 /* ImmersiveScene.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = ImmersiveScene.metal; sourceTree = "<group>"; };
+		67C0B12C9E38749A66148D98 /* visionOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = visionOSApp.swift; sourceTree = "<group>"; };
 		6B22B6FE2DEE0E1FAE3C5820 /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
 		74A591C534F0D81CB1BC28FD /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
 		8516951A35DF5BAC2068FF56 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -77,9 +100,11 @@
 		94971C7B80C0B86890A7A823 /* PaywallSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallSheet.swift; sourceTree = "<group>"; };
 		98202AB7F164C5CCC41EC1CE /* Postprocess.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Postprocess.metal; sourceTree = "<group>"; };
 		9AC73052E737148B60773EDA /* AboutSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutSheet.swift; sourceTree = "<group>"; };
-		ACC9B3C45605DEDD23F39963 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A2DAEBF182F24FEB27214E2B /* BlackHole-visionOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "BlackHole-visionOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		ACC9B3C45605DEDD23F39963 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		AD9BA2C2D5BA421AD48B304A /* VisionControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionControlsView.swift; sourceTree = "<group>"; };
 		B07C58C81249192B2E4CC996 /* MetalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalView.swift; sourceTree = "<group>"; };
-		B26D95461A4C15AF94731790 /* BlackHole-iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "BlackHole-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		B26D95461A4C15AF94731790 /* BlackHole-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "BlackHole-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		CA29C6AB0EA23F31509EF7AD /* ControlPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlPanel.swift; sourceTree = "<group>"; };
 		D877B3FC4148183FBA367728 /* macOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = macOSApp.swift; sourceTree = "<group>"; };
 		E2016702F3956BE72425A269 /* BlackHole-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "BlackHole-macOS.entitlements"; sourceTree = "<group>"; };
@@ -133,6 +158,7 @@
 			children = (
 				B26D95461A4C15AF94731790 /* BlackHole-iOS.app */,
 				0A1996A31D48334802F73F4C /* BlackHole-macOS.app */,
+				A2DAEBF182F24FEB27214E2B /* BlackHole-visionOS.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -143,6 +169,7 @@
 				47C2261D0B2F8A80A4810AC6 /* BlackHole */,
 				3E2B9CCA2018B7793852F1BF /* BlackHole-iOS */,
 				FF7132E159ED7E99280E6221 /* BlackHole-macOS */,
+				BADFFF154928EDC0EAE4BE72 /* BlackHole-visionOS */,
 				559B8F056A8AEC0971976CC2 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -154,6 +181,18 @@
 				F041D0E5499945102C25AE46 /* ShaderTypes.h */,
 			);
 			path = Shared;
+			sourceTree = "<group>";
+		};
+		BADFFF154928EDC0EAE4BE72 /* BlackHole-visionOS */ = {
+			isa = PBXGroup;
+			children = (
+				29BEC6B796F2572E687DEA19 /* ImmersiveRenderer.swift */,
+				5B7164F8C63CCFB0AD312A80 /* ImmersiveScene.metal */,
+				0A65A62FA186A73BEDC1A002 /* Info.plist */,
+				AD9BA2C2D5BA421AD48B304A /* VisionControlsView.swift */,
+				67C0B12C9E38749A66148D98 /* visionOSApp.swift */,
+			);
+			path = "BlackHole-visionOS";
 			sourceTree = "<group>";
 		};
 		CFF8C219330AA312FC5ED1C6 /* Renderer */ = {
@@ -229,6 +268,24 @@
 			productReference = B26D95461A4C15AF94731790 /* BlackHole-iOS.app */;
 			productType = "com.apple.product-type.application";
 		};
+		B70A08803A7B8F2DC74E7364 /* BlackHole-visionOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 15ADFD5EB896D8331A19CA0D /* Build configuration list for PBXNativeTarget "BlackHole-visionOS" */;
+			buildPhases = (
+				7C0427787038716671E7F043 /* Sources */,
+				950FAF5A1F5C61C050394D5E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "BlackHole-visionOS";
+			packageProductDependencies = (
+			);
+			productName = "BlackHole-visionOS";
+			productReference = A2DAEBF182F24FEB27214E2B /* BlackHole-visionOS.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -243,6 +300,9 @@
 						ProvisioningStyle = Automatic;
 					};
 					81D83E5C73648945D22A3F78 = {
+						ProvisioningStyle = Automatic;
+					};
+					B70A08803A7B8F2DC74E7364 = {
 						DevelopmentTeam = LQ69YVA9KK;
 						ProvisioningStyle = Automatic;
 					};
@@ -264,6 +324,7 @@
 			targets = (
 				81D83E5C73648945D22A3F78 /* BlackHole-iOS */,
 				63E73837F541D888209DC80A /* BlackHole-macOS */,
+				B70A08803A7B8F2DC74E7364 /* BlackHole-visionOS */,
 			);
 		};
 /* End PBXProject section */
@@ -286,6 +347,14 @@
 				F69ECF7C1E9B3B8CD6F79886 /* Assets.xcassets in Resources */,
 				59B060E7778F6E712F54014D /* LaunchScreen.storyboard in Resources */,
 				F35B3F8C56438C7665081A90 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		950FAF5A1F5C61C050394D5E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D8A3D7BF1B84C8F1A64FE028 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -314,6 +383,31 @@
 				145116860D5A26CEE03394A8 /* SubscriptionManager.swift in Sources */,
 				C731A45B2ED2610D29CC4234 /* WallpaperSaver.swift in Sources */,
 				950AB0F930740072F42899F4 /* iOSApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7C0427787038716671E7F043 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5D5A75D72DF1AB56D394583C /* AboutSheet.swift in Sources */,
+				2FA030A848553CFAABCD0A5F /* BlackHole.metal in Sources */,
+				0273C7B002D180F842D5C02C /* BlackHoleParameters.swift in Sources */,
+				7EE2E558624B090736EE9BDB /* ControlPanel.swift in Sources */,
+				BF5E894EB0619BC5A716BF23 /* Gravitas.swift in Sources */,
+				8CBCED5C9DEB36A8D0BFB09D /* HUDView.swift in Sources */,
+				0313DD307A72C2C2A673FBDC /* ImmersiveRenderer.swift in Sources */,
+				05D5CC0F0AE636C5C8E238FC /* ImmersiveScene.metal in Sources */,
+				F769C40909B59841EEFFF714 /* PaywallSheet.swift in Sources */,
+				7E785BBFC0753AB8CB05FC11 /* PomodoroTimer.swift in Sources */,
+				AF6E96C28DAB2E20ECC7B12D /* PomodoroView.swift in Sources */,
+				73690FFDD1D84E6DE37FE1EA /* Postprocess.metal in Sources */,
+				F4957E4D0F8DF3FC99A035B0 /* QualityPreset.swift in Sources */,
+				08846C9EDD81AA09AD3DDEF7 /* Renderer.swift in Sources */,
+				495CB10CBBE976B183ABBBA2 /* Scenarios.swift in Sources */,
+				86F5C708878923FF3B4E24E1 /* SubscriptionManager.swift in Sources */,
+				1911572044E831B11D4D43EC /* VisionControlsView.swift in Sources */,
+				22A7ED9133BEA9CF0A8E1DC7 /* visionOSApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -353,6 +447,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = Z64KRUX3W3;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "BlackHole-iOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -389,11 +484,31 @@
 			};
 			name = Release;
 		};
+		23C60528EDEB8B4BDD99111D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "BlackHole-visionOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.orchestrsim.blackholesim;
+				SDKROOT = xros;
+				SWIFT_OBJC_BRIDGING_HEADER = "BlackHole/Shared/BlackHole-Bridging-Header.h";
+				TARGETED_DEVICE_FAMILY = 7;
+			};
+			name = Release;
+		};
 		54696CEF719DBC476F1023F3 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = Z64KRUX3W3;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "BlackHole-iOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -408,6 +523,25 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
+		};
+		5AEF36D6E18A17D6D30FFD19 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "BlackHole-visionOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.orchestrsim.blackholesim;
+				SDKROOT = xros;
+				SWIFT_OBJC_BRIDGING_HEADER = "BlackHole/Shared/BlackHole-Bridging-Header.h";
+				TARGETED_DEVICE_FAMILY = 7;
+			};
+			name = Debug;
 		};
 		C15930BCFE8A31042DF44E6F /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -489,6 +623,7 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_STRICT_CONCURRENCY = minimal;
 				SWIFT_VERSION = 5.10;
+				XROS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Release;
 		};
@@ -558,12 +693,22 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_STRICT_CONCURRENCY = minimal;
 				SWIFT_VERSION = 5.10;
+				XROS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Debug;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		15ADFD5EB896D8331A19CA0D /* Build configuration list for PBXNativeTarget "BlackHole-visionOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5AEF36D6E18A17D6D30FFD19 /* Debug */,
+				23C60528EDEB8B4BDD99111D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		32073A9A37C557625EE1D5D4 /* Build configuration list for PBXNativeTarget "BlackHole-iOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

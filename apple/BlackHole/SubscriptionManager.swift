@@ -1,5 +1,8 @@
 import Foundation
 import StoreKit
+#if os(visionOS) || os(iOS)
+import UIKit
+#endif
 
 /// Bridges StoreKit 2 with the rest of the app.
 ///
@@ -78,7 +81,20 @@ final class SubscriptionManager: ObservableObject {
 
     func purchase(_ product: Product) async {
         do {
+            #if os(visionOS)
+            // visionOS requires a UIScene anchor for the purchase confirmation UI.
+            guard let scene = UIApplication.shared.connectedScenes
+                    .compactMap({ $0 as? UIWindowScene })
+                    .first(where: { $0.activationState == .foregroundActive })
+                    ?? (UIApplication.shared.connectedScenes
+                        .compactMap { $0 as? UIWindowScene }.first) else {
+                lastError = "No active window scene to host purchase."
+                return
+            }
+            let result = try await product.purchase(confirmIn: scene)
+            #else
             let result = try await product.purchase()
+            #endif
             switch result {
             case .success(let verification):
                 let transaction = try checkVerified(verification)

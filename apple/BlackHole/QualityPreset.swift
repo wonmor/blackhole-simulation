@@ -1,9 +1,42 @@
 import Foundation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Visual-quality budget for the render pipeline. Higher presets cost more GPU.
 /// Step counts match `SIMULATION_CONFIG.rayTracingSteps` from the web build.
 enum QualityPreset: String, CaseIterable, Identifiable {
     case low, medium, high, ultra
+
+    /// Best default for the current device. Errs on the conservative side —
+    /// users can always crank up via the Quality picker.
+    ///
+    ///   * iOS Simulator       → low   (renders on Mac CPU, very slow)
+    ///   * visionOS            → low   (stereo at 4K per eye is brutal)
+    ///   * iPhone (any A-chip) → medium
+    ///   * iPad                → high
+    ///   * macOS Apple Silicon → ultra
+    ///   * macOS Intel         → high
+    static var autoDetected: QualityPreset {
+        #if targetEnvironment(simulator)
+        return .low
+        #elseif os(visionOS)
+        return .medium
+        #elseif os(macOS)
+        #if arch(arm64)
+        return .ultra
+        #else
+        return .high
+        #endif
+        #else
+        // iOS / iPadOS — pick by idiom if we're on iPad, otherwise iPhone.
+        #if canImport(UIKit)
+        return UIDevice.current.userInterfaceIdiom == .pad ? .high : .medium
+        #else
+        return .medium
+        #endif
+        #endif
+    }
 
     var id: String { rawValue }
 
