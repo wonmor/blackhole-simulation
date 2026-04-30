@@ -61,8 +61,18 @@ final class ImmersiveRenderer {
         desc.vertexFunction = vfn
         desc.fragmentFunction = ffn
         desc.colorAttachments[0].pixelFormat = drawable.colorTextures[0].pixelFormat
-        desc.depthAttachmentPixelFormat = drawable.depthTextures[0].pixelFormat
-        desc.rasterSampleCount = 1
+
+        // Match depth + (combined) stencil format to whatever Compositor gave
+        // us. Some visionOS drawables hand back .depth32Float_stencil8, which
+        // is a combined format requiring BOTH attachments to be set on the
+        // pipeline; otherwise validation hard-asserts before throwing.
+        let depthFmt = drawable.depthTextures[0].pixelFormat
+        desc.depthAttachmentPixelFormat = depthFmt
+        if depthFmt == .depth32Float_stencil8 || depthFmt == .x32_stencil8 {
+            desc.stencilAttachmentPixelFormat = depthFmt
+        }
+        desc.rasterSampleCount = drawable.colorTextures[0].sampleCount
+
         do {
             self.pipelineState = try device.makeRenderPipelineState(descriptor: desc)
         } catch {

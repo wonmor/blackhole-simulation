@@ -28,8 +28,15 @@ struct ContentView: View {
             ZStack {
                 MetalView(params: params, paused: !hostFocused)
                     .ignoresSafeArea()
+                    // SwiftUI .blur on a Metal layer caches and re-blurs the
+                    // rendered frame — on iOS, scenePhase transitions mid-frame
+                    // (notification pull, control center) leave stale content
+                    // visible. Restrict the blur effect to macOS where windowed
+                    // focus changes are the only trigger.
+                    #if os(macOS)
                     .blur(radius: hostFocused ? 0 : 18, opaque: true)
                     .animation(.easeInOut(duration: 0.18), value: hostFocused)
+                    #endif
                     .gesture(
                         SimultaneousGesture(
                             DragGesture(minimumDistance: 0)
@@ -76,6 +83,19 @@ struct ContentView: View {
             PomodoroView(timer: pomodoro)
                 .padding(.horizontal, 8)
         }
+        // iPhone-only: ControlPanel as a bottom sheet (avoids width clipping).
+        .sheet(isPresented: Binding(
+            get: { showControls && usesSheetForControls },
+            set: { if !$0 { showControls = false } }
+        )) {
+            ScrollView {
+                controlPanelInstance
+                    .padding(16)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(.ultraThinMaterial)
+        }
         .sheet(isPresented: $subscription.requestPaywall) {
             PaywallSheet(subscription: subscription)
         }
@@ -116,20 +136,35 @@ struct ContentView: View {
             }
             .buttonStyle(.plain)
 
-            if showControls {
-                ControlPanel(
-                    params: params,
-                    subscription: subscription,
-                    pomodoro: pomodoro,
-                    onPomodoroTap: { showPomodoro = true },
-                    onWallpaperSaveTap: wallpaperSaveAction,
-                    onLiveWallpaperToggle: liveWallpaperToggleAction,
-                    liveWallpaperActive: liveWallpaperActive,
-                    onAboutTap: { showAbout = true }
-                )
-                .transition(.move(edge: .trailing).combined(with: .opacity))
+            // On iPhone (compact width), the side panel doesn't fit alongside
+            // the HUD — present as a bottom sheet instead. iPad / Mac /
+            // visionOS keep the inline side panel.
+            if showControls && !usesSheetForControls {
+                controlPanelInstance
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
+    }
+
+    private var controlPanelInstance: some View {
+        ControlPanel(
+            params: params,
+            subscription: subscription,
+            pomodoro: pomodoro,
+            onPomodoroTap: { showPomodoro = true },
+            onWallpaperSaveTap: wallpaperSaveAction,
+            onLiveWallpaperToggle: liveWallpaperToggleAction,
+            liveWallpaperActive: liveWallpaperActive,
+            onAboutTap: { showAbout = true }
+        )
+    }
+
+    private var usesSheetForControls: Bool {
+        #if os(iOS)
+        return UIDevice.current.userInterfaceIdiom == .phone
+        #else
+        return false
+        #endif
     }
 
     // MARK: - Helpers

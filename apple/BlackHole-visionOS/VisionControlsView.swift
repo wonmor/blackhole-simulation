@@ -16,7 +16,7 @@ struct VisionControlsView: View {
     @State private var showAbout: Bool = false
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 22) {
             header
 
             Button {
@@ -56,10 +56,11 @@ struct VisionControlsView: View {
                 onPomodoroTap: { showPomodoro = true },
                 onAboutTap:    { showAbout = true }
             )
+            .padding(.top, 8)
 
             Spacer(minLength: 0)
         }
-        .padding(16)
+        .padding(20)
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showPomodoro)  { PomodoroView(timer: pomodoro) }
         .sheet(isPresented: $showAbout)     { AboutSheet() }

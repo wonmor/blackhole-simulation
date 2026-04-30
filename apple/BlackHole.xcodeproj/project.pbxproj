@@ -48,6 +48,7 @@
 		950AB0F930740072F42899F4 /* iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2063DC9DB076023B1EDB0B0B /* iOSApp.swift */; };
 		95C9B85C8CFD1214BC42B11E /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8516951A35DF5BAC2068FF56 /* ContentView.swift */; };
 		97436CB8650F976ABA7AEF25 /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74A591C534F0D81CB1BC28FD /* SubscriptionManager.swift */; };
+		A0CB765D7777DCC25EE4C4B5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97AE7B9B7CB40FFAD5093D9C /* Assets.xcassets */; };
 		A0FE73C1962EFD2205BA26D1 /* PomodoroTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C536C9AE14001F0686AEF34 /* PomodoroTimer.swift */; };
 		A839DE4408696F05787165D2 /* Postprocess.metal in Sources */ = {isa = PBXBuildFile; fileRef = 98202AB7F164C5CCC41EC1CE /* Postprocess.metal */; };
 		A83DDDFB57270785BD8D4EE3 /* ControlPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA29C6AB0EA23F31509EF7AD /* ControlPanel.swift */; };
@@ -79,7 +80,7 @@
 		0A65A62FA186A73BEDC1A002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		0C536C9AE14001F0686AEF34 /* PomodoroTimer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PomodoroTimer.swift; sourceTree = "<group>"; };
 		0D13F475A5E98679A99B94A9 /* WallpaperSaver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperSaver.swift; sourceTree = "<group>"; };
-		138CE173BF3D9CE425A1BA87 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		138CE173BF3D9CE425A1BA87 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		13CC2436F650CACEF9C12C44 /* QualityPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QualityPreset.swift; sourceTree = "<group>"; };
 		2063DC9DB076023B1EDB0B0B /* iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSApp.swift; sourceTree = "<group>"; };
 		228A3247AF1FD5E3C0B7DF90 /* Gravitas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gravitas.swift; sourceTree = "<group>"; };
@@ -98,13 +99,14 @@
 		8AAD919A090B51F89F413EA0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		91148CBE0EBE1FB5F544E907 /* MenuBarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarContent.swift; sourceTree = "<group>"; };
 		94971C7B80C0B86890A7A823 /* PaywallSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallSheet.swift; sourceTree = "<group>"; };
+		97AE7B9B7CB40FFAD5093D9C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		98202AB7F164C5CCC41EC1CE /* Postprocess.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Postprocess.metal; sourceTree = "<group>"; };
 		9AC73052E737148B60773EDA /* AboutSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutSheet.swift; sourceTree = "<group>"; };
 		A2DAEBF182F24FEB27214E2B /* BlackHole-visionOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "BlackHole-visionOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		ACC9B3C45605DEDD23F39963 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		ACC9B3C45605DEDD23F39963 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AD9BA2C2D5BA421AD48B304A /* VisionControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionControlsView.swift; sourceTree = "<group>"; };
 		B07C58C81249192B2E4CC996 /* MetalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalView.swift; sourceTree = "<group>"; };
-		B26D95461A4C15AF94731790 /* BlackHole-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "BlackHole-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		B26D95461A4C15AF94731790 /* BlackHole-iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "BlackHole-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		CA29C6AB0EA23F31509EF7AD /* ControlPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlPanel.swift; sourceTree = "<group>"; };
 		D877B3FC4148183FBA367728 /* macOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = macOSApp.swift; sourceTree = "<group>"; };
 		E2016702F3956BE72425A269 /* BlackHole-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "BlackHole-macOS.entitlements"; sourceTree = "<group>"; };
@@ -186,6 +188,7 @@
 		BADFFF154928EDC0EAE4BE72 /* BlackHole-visionOS */ = {
 			isa = PBXGroup;
 			children = (
+				97AE7B9B7CB40FFAD5093D9C /* Assets.xcassets */,
 				29BEC6B796F2572E687DEA19 /* ImmersiveRenderer.swift */,
 				5B7164F8C63CCFB0AD312A80 /* ImmersiveScene.metal */,
 				0A65A62FA186A73BEDC1A002 /* Info.plist */,
@@ -300,6 +303,7 @@
 						ProvisioningStyle = Automatic;
 					};
 					81D83E5C73648945D22A3F78 = {
+						DevelopmentTeam = LQ69YVA9KK;
 						ProvisioningStyle = Automatic;
 					};
 					B70A08803A7B8F2DC74E7364 = {
@@ -355,6 +359,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D8A3D7BF1B84C8F1A64FE028 /* Assets.xcassets in Resources */,
+				A0CB765D7777DCC25EE4C4B5 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -447,7 +452,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = Z64KRUX3W3;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "BlackHole-iOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -508,7 +512,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = Z64KRUX3W3;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "BlackHole-iOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (

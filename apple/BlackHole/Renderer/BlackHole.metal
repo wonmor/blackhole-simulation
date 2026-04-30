@@ -399,6 +399,11 @@ fragment float4 bh_fs(VSOut in [[stage_in]],
 
     int photonCrossings = 0;
     float prevY = p.y;
+    // Track closest approach to BH so the photon ring can glow even for
+    // captured rays that never accumulated disk emission. Without this,
+    // pixels that capture along the spin axis show as a hard black dot
+    // inside the bright wrap-around — the "central dot" artifact.
+    float minR = length(p);
 
     // Far-field threshold: beyond this, gravity falls below ~M / 4900 ≈ 2e-4 per
     // unit M, so a ray's deflection is sub-pixel. Skip kerr_accel + disk + photon
@@ -415,6 +420,7 @@ fragment float4 bh_fs(VSOut in [[stage_in]],
     for (int i = 0; i < maxSteps && !loopHorizonHit; ++i) {
         p_prev = p;
         float r = length(p);
+        minR = min(minR, r);
         if (r < rh * HORIZON_THRESHOLD) {
             hitHorizon = true;
             loopHorizonHit = true;
@@ -504,9 +510,13 @@ fragment float4 bh_fs(VSOut in [[stage_in]],
     if (ENABLE_STARS && !hitHorizon) background = starfield(v, u.time);
 
     float3 photon = float3(0.0);
-    if (ENABLE_PHOTON_GLOW && !hitHorizon) {
-        float distToRing = abs(length(p) - rph);
-        float directRing = exp(-distToRing * 40.0) * 1.8 * u.lensingStrength;
+    if (ENABLE_PHOTON_GLOW) {
+        // Use closest-approach distance (`minR`), not final position. Captured
+        // rays still spent time grazing the photon sphere and should glow
+        // accordingly — this fills the inner shadow boundary smoothly with
+        // the ring instead of leaving a hard "central dot" of pure black.
+        float distToRing = abs(minR - rph);
+        float directRing = exp(-distToRing * 28.0) * 1.6 * u.lensingStrength;
         float higherOrderRing = 0.0;
         if (photonCrossings > 0) {
             float ringSharpness = 60.0 + float(photonCrossings) * 30.0;

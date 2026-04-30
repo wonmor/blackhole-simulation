@@ -404,7 +404,12 @@ final class Renderer: NSObject, MTKViewDelegate {
     {
         let desc = MTLRenderPassDescriptor()
         desc.colorAttachments[0].texture = target
-        desc.colorAttachments[0].loadAction = .dontCare
+        // Use `.clear` (not `.dontCare`) so any pixel the fullscreen triangle
+        // doesn't cover (e.g., during a drawable resize while SwiftUI animates
+        // the host view) shows clean black instead of stale frame data — which
+        // was causing the tiled / displaced multi-frame artifact on iPhone
+        // when the bottom sheet animation toggled.
+        desc.colorAttachments[0].loadAction = .clear
         desc.colorAttachments[0].storeAction = .store
         desc.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
         if let enc = commandBuffer.makeRenderCommandEncoder(descriptor: desc) {
