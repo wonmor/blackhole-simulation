@@ -62,6 +62,10 @@ targets:
         excludes:
           - "MetalView.swift"
           - "ContentView.swift"
+          # iOS-style .appiconset can't be compiled for the vision idiom;
+          # the visionOS target ships its own .solidimagestack catalog under
+          # BlackHole-visionOS/Assets.xcassets.
+          - "Assets.xcassets"
       - path: BlackHole-visionOS
     info:
       path: BlackHole-visionOS/Info.plist
