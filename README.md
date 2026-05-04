@@ -1,86 +1,150 @@
-# Interactive Black Hole Simulation
+# BlackHole — Native macOS & iOS
 
-A scientifically accurate, real-time relativistic ray-marching engine for visualizing Kerr black holes at near-extremal spin ($a=0.999$). Built with **Next.js 14**, **WebGL 2.0 (High Compatibility)**, **WebGPU (Performance Roadmap)**, and **Rust (Physics Kernel)**.
+A scientifically-accurate, real-time relativistic ray-marching engine that
+solves curved-spacetime geodesics for near-extremal Kerr black holes
+($a$ up to $0.999$). Written in **Swift + Metal Shading Language**, with
+an optional Rust kernel (`gravitas-core`) for validated horizon /
+photon-sphere / ISCO math.
 
----
+The macOS build doubles as a **live desktop wallpaper** that renders
+behind your windows and Finder icons. The iOS build can capture the
+current frame and save it to Photos so you can set it as a still
+wallpaper.
 
-## Technical Specifications
+## Screenshots
 
-| Domain         | Technology                                    | Implementation          |
-| :------------- | :-------------------------------------------- | :---------------------- |
-| **Framework**  | Next.js 14 (App Router), React 18             | Orchestration           |
-| **Physics**    | Rust (WASM), f64 precision                    | Gravitas-Core Kernel    |
-| **Rendering**  | WebGL 2.0 (Primary) / WebGPU (Alpha)          | Geodesic Ray-Marcher    |
-| **Integrator** | Adaptive RKF45 (Rust) / Velocity-Verlet (GPU) | 2nd-Order Symplectic    |
-| **Memory**     | SharedArrayBuffer (Zero-Copy)                 | Offset-Matched Protocol |
-| **Tooling**    | Bun, Rust (uv/cargo), wasm-pack               | High-Performance Stack  |
+| Front view | Pole view |
+| :--- | :--- |
+| ![Front view](apple/screenshots/appstore/macos-home-1-2880x1800.png) | ![Pole view with jets](apple/screenshots/appstore/macos-home-2-2880x1800.png) |
 
----
+| Control panel | Pomodoro timer | Live wallpaper |
+| :--- | :--- | :--- |
+| ![Control panel](apple/screenshots/appstore/macos-controls-2880x1800.png) | ![Pomodoro](apple/screenshots/appstore/macos-pomodoro-2880x1800.png) | ![Live wallpaper](apple/screenshots/appstore/macos-wallpaper-2880x1800.png) |
 
-## Core Engineering Features
+## What's in the box
 
-- **Relativistic Ray-Marching**: Solves curved spacetime geodesics using a numerically regularized **Kerr-Schild Metric** for horizon stability.
-- **Hybrid Performance Strategy**: Distributes workload across hardware layers—CPU (Logic), GPU (Pixels), and Rust (Math).
-- **Temporal Anti-Aliasing (TAA)**: Custom reprojection pass with **Variance Clipping** in YCoCg color space to eliminate ray-marching noise.
-- **Adaptive Quality System**: Detects hardware tiers (e.g., Intel Iris Xe) and dynamically adjust resolution and step counts.
-- **True 3D Spacetime Analytics**: Mathematically rigorous 3D volumetric metric grids mapping coordinate-invariant curvature and frame-dragging fields.
-- **Spectral Basis Rendering**: Utilizes pre-computed Planckian LUTs to render physically accurate Doppler/Gravitational redshift.
+| Domain         | Implementation                                                |
+| :------------- | :------------------------------------------------------------ |
+| **Renderer**   | Multipass HDR Metal: `scene → TAA → bright → blur → composite` |
+| **Geodesics**  | Kerr-Schild Hamiltonian + Bardeen effective potential (MSL)   |
+| **Disk model** | Page-Thorne with exact Doppler factor + Tanner-Helland blackbody |
+| **TAA**        | Neighborhood-clamped temporal AA in YCoCg space               |
+| **Tone map**   | ACES + gamma 2.2                                              |
+| **Physics FFI**| Optional Rust `gravitas-ffi` xcframework (Kerr horizon, ISCO) |
 
----
+Quality presets (Low / Medium / High / Ultra) tune ray steps, render
+scale, TAA, and bloom independently.
 
-## System Architecture
+## Layout
 
-The engine utilizes a **Zero-Copy Reactive Data Pipeline**. High-precision physics and high-throughput rendering communicate over a **SharedArrayBuffer** to eliminate serialization overhead.
-
-```text
-.
-├── docs/                   # Scientific Specs, Architecture, & Performance Reports
-├── physics-engine/         # Rust Physics Kernel (WASM)
-│   ├── gravitas-core/      # Core Math Library (Metric Tensors, RKF45)
-│   └── gravitas-wasm/      # WASM FFI layer & SAB Protocol
-└── src/
-    ├── app/                # Next.js 14 Application Entry
-    ├── rendering/          # WebGL/WebGPU Pipeline (TAA, Bloom, Adaptive Resolution)
-    ├── shaders/            # GPU Geodesic Kernels (Velocity-Verlet)
-    ├── workers/            # Multi-threaded Physics Host (75Hz Active / 1Hz Idle)
-    └── engine/             # Direct WASM/SAB Bridge
+```
+apple/
+├── project.yml                       # XcodeGen spec
+├── BlackHole/                        # Shared sources (both targets)
+│   ├── BlackHoleParameters.swift     # ObservableObject for sliders + toggles
+│   ├── ContentView.swift             # Drag + pinch gestures + home buttons
+│   ├── ControlPanel.swift            # Sliders, preset picker, toggles
+│   ├── HUDView.swift                 # FPS / r_h / r_ph / ISCO overlay
+│   ├── PomodoroTimer.swift           # Focus-timer model
+│   ├── PomodoroView.swift            # Ring UI + controls
+│   ├── PaywallSheet.swift            # Pro upgrade flow
+│   ├── SubscriptionManager.swift     # StoreKit 2 monthly subscription
+│   ├── AboutSheet.swift              # Credits + version
+│   ├── Scenarios.swift               # Preset Kerr configurations
+│   ├── MetalView.swift               # Cross-platform MTKView wrapper
+│   ├── QualityPreset.swift           # Low / Med / High / Ultra
+│   ├── Bridge/
+│   │   └── Gravitas.swift            # Swift ↔ gravitas-ffi shim
+│   ├── Renderer/
+│   │   ├── Renderer.swift            # Multipass pipeline driver
+│   │   ├── BlackHole.metal           # Kerr scene fragment shader (HDR out)
+│   │   └── Postprocess.metal         # TAA + bloom + composite
+│   └── Shared/
+│       ├── ShaderTypes.h             # Shared C struct (Swift + MSL)
+│       └── BlackHole-Bridging-Header.h
+│
+├── BlackHole-macOS/                  # macOS target
+│   ├── Info.plist
+│   ├── macOSApp.swift
+│   ├── AppController.swift           # Window vs. wallpaper-mode switching
+│   ├── MenuBarContent.swift          # Status-bar item
+│   ├── WallpaperManager.swift        # NSWindow → desktop level
+│   ├── WallpaperOverlay.swift        # Behind-icons rendering
+│   └── Assets.xcassets
+│
+├── BlackHole-iOS/                    # iOS target
+│   ├── Info.plist
+│   ├── iOSApp.swift
+│   └── WallpaperSaver.swift          # MTKView → UIImage → Photos library
+│
+├── scripts/
+│   └── build-gravitas-xcframework.sh # Rust → fat xcframework
+│
+└── screenshots/                      # App Store submission assets
 ```
 
-> For a complete breakdown of the mathematical framework and performance optimizations, see the [**System Architecture Documentation**](./docs/ARCHITECTURE.md).
+## Build
 
----
-
-## Installation & Deployment
-
-### Prerequisites
-
-- **Bun** (v1.2+)
-- **Rust Toolchain** (latest stable)
-- **wasm-pack**
-
-### Local Setup
+Requires Xcode 15.4+ and [`xcodegen`](https://github.com/yonaskolb/XcodeGen)
+(`brew install xcodegen`).
 
 ```bash
-# 1. Install frontend dependencies
-bun install
-
-# 2. Build the Physics Engine (WASM)
-bun run build:wasm
-
-# 3. Start the high-performance dev server
-bun run dev
+cd apple
+xcodegen generate
+open BlackHole.xcodeproj
 ```
 
----
+CLI builds:
 
-## Documentation Index
+```bash
+xcodebuild -project apple/BlackHole.xcodeproj \
+           -scheme BlackHole-macOS \
+           -configuration Release -destination 'platform=macOS' build
 
-1. [**ARCHITECTURE.md**](./docs/ARCHITECTURE.md) - System design, pipeline diagrams, and file structure.
-2. [**PHYSICS.md**](./docs/PHYSICS.md) - Mathematical foundations (Kerr Metric, Redshift, Geodesics).
-3. [**PERFORMANCE.md**](./docs/PERFORMANCE.md) - Optimization strategies (TAA, Uniform Batching, Adaptive LOD).
+xcodebuild -project apple/BlackHole.xcodeproj \
+           -scheme BlackHole-iOS \
+           -configuration Release \
+           -destination 'generic/platform=iOS' build
+```
 
----
+To run on a real iPhone, set `DEVELOPMENT_TEAM` in `project.yml` to your
+Apple Developer Team ID and re-run `xcodegen generate`.
+
+## Optional: link the validated Rust kernel
+
+The Metal scene shader does its own geodesic integration on-GPU, so the
+app runs today without Rust. To swap the Swift Bardeen formulas in
+`BlackHole/Bridge/Gravitas.swift` for the validated `gravitas-core` Rust
+kernel:
+
+1. Install `rustup` (https://rustup.rs).
+2. Build the xcframework:
+   ```bash
+   cd apple
+   ./scripts/build-gravitas-xcframework.sh
+   ```
+   This produces `apple/build/Gravitas.xcframework`.
+3. Add the framework to `project.yml` under both targets:
+   ```yaml
+   dependencies:
+     - framework: build/Gravitas.xcframework
+       embed: false
+   ```
+4. Add `GRAVITAS_LINKED` to each target's
+   `SWIFT_ACTIVE_COMPILATION_CONDITIONS` so the bridge in
+   `Bridge/Gravitas.swift` switches to the C symbols.
+5. Re-run `xcodegen generate`.
+
+## Quality presets
+
+| Preset | Ray steps | Render scale | TAA | Bloom |
+|--------|-----------|--------------|-----|-------|
+| Low    | 80        | 0.6×         | off | off   |
+| Medium | 160       | 0.8×         | on  | on    |
+| High   | 240       | 1.0×         | on  | on    |
+| Ultra  | 360       | 1.0×         | on  | on    |
 
 ## License
 
-MIT - Copyright (c) 2026 Mayank / steeltroops-ai.
+MIT — © 2026 John Seong / Orch Aerospace, Inc.
+Forked from work by Mayank Pratap Singh.

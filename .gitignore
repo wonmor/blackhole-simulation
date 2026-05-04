@@ -55,3 +55,7 @@ apple/build/
 apple/**/xcuserdata/
 apple/**/*.xcuserstate
 apple/**/DerivedData/
+
+# App Store Connect metadata — paste-into-AppStoreConnect file, contains
+# personal contact info; keep local-only, never commit.
+apple/screenshots/APPSTORE_METADATA.md

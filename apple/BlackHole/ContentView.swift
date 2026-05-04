@@ -124,17 +124,43 @@ struct ContentView: View {
     @ViewBuilder
     private var controlsColumn: some View {
         VStack(alignment: .trailing, spacing: 8) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.15)) { showControls.toggle() }
-            } label: {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
-                    .padding(10)
-                    .background(.black.opacity(0.55))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+            HStack(spacing: 8) {
+                #if os(macOS)
+                if let toggle = liveWallpaperToggleAction {
+                    homeIconButton(
+                        symbol: liveWallpaperActive ? "stop.circle" : "rectangle.on.rectangle",
+                        accent: liveWallpaperActive,
+                        help: liveWallpaperActive ? "Stop Live Wallpaper" : "Set as Live Wallpaper"
+                    ) {
+                        if subscription.isProUnlocked || liveWallpaperActive {
+                            toggle()
+                        } else {
+                            subscription.requestPaywall = true
+                        }
+                    }
+                }
+                #endif
+
+                #if os(iOS)
+                if let save = wallpaperSaveAction {
+                    homeIconButton(symbol: "square.and.arrow.down", help: "Save as Wallpaper") {
+                        save()
+                    }
+                }
+                #endif
+
+                homeIconButton(symbol: "timer", help: "Pomodoro") {
+                    if subscription.isProUnlocked {
+                        showPomodoro = true
+                    } else {
+                        subscription.requestPaywall = true
+                    }
+                }
+
+                homeIconButton(symbol: "slider.horizontal.3", help: "Controls") {
+                    withAnimation(.easeInOut(duration: 0.15)) { showControls.toggle() }
+                }
             }
-            .buttonStyle(.plain)
 
             // On iPhone (compact width), the side panel doesn't fit alongside
             // the HUD — present as a bottom sheet instead. iPad / Mac /
@@ -144,6 +170,36 @@ struct ContentView: View {
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
+    }
+
+    @ViewBuilder
+    private func homeIconButton(
+        symbol: String,
+        accent: Bool = false,
+        help: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 36, height: 36)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(accent ? Color(red: 0.55, green: 0.95, blue: 1.0).opacity(0.22)
+                                     : Color.black.opacity(0.55))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(
+                            accent ? Color(red: 0.55, green: 0.95, blue: 1.0).opacity(0.55)
+                                   : Color.white.opacity(0.10),
+                            lineWidth: 0.7
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .help(help)
     }
 
     private var controlPanelInstance: some View {
