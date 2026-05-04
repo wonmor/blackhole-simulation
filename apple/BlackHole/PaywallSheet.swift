@@ -136,13 +136,16 @@ struct PaywallSheet: View {
 
             Spacer()
 
-            Link("Terms",
-                 destination: URL(string: "https://orchestrsim.com/terms")!)
+            // Apple's standard EULA — the default Terms of Use for any app
+            // that doesn't ship its own. Required for subscriptions per
+            // App Review Guideline 3.1.2.
+            Link("Terms of Use",
+                 destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
                 .font(.system(size: 11))
                 .foregroundColor(.white.opacity(0.55))
             Text("·").foregroundColor(.white.opacity(0.30))
-            Link("Privacy",
-                 destination: URL(string: "https://orchestrsim.com/privacy")!)
+            Link("Privacy Policy",
+                 destination: URL(string: "https://github.com/wonmor/blackhole-simulation/blob/main/PRIVACY.md")!)
                 .font(.system(size: 11))
                 .foregroundColor(.white.opacity(0.55))
         }
