@@ -56,25 +56,34 @@ final class ImmersiveRenderer {
               let ffn = library.makeFunction(name: "immersive_fs") else {
             fatalError("CompositorServices: missing immersive shaders.")
         }
+
+        // Diagnostic: log every value we're feeding the pipeline descriptor.
+        // Visible in `xcrun simctl spawn ... log show --predicate ...`.
+        let colorFmt = drawable.colorTextures[0].pixelFormat
+        let depthFmt = drawable.depthTextures[0].pixelFormat
+        let samples = drawable.colorTextures[0].sampleCount
+        let viewCount = layerRenderer.properties.viewCount
+        NSLog("BH PIPELINE: color=\(colorFmt.rawValue) depth=\(depthFmt.rawValue) samples=\(samples) viewCount=\(viewCount)")
+
         let desc = MTLRenderPipelineDescriptor()
         desc.label = "Immersive Black Hole"
         desc.vertexFunction = vfn
         desc.fragmentFunction = ffn
-        desc.colorAttachments[0].pixelFormat = drawable.colorTextures[0].pixelFormat
-
-        // Match depth + (combined) stencil format to whatever Compositor gave
-        // us. Some visionOS drawables hand back .depth32Float_stencil8, which
-        // is a combined format requiring BOTH attachments to be set on the
-        // pipeline; otherwise validation hard-asserts before throwing.
-        let depthFmt = drawable.depthTextures[0].pixelFormat
+        desc.colorAttachments[0].pixelFormat = colorFmt
+        desc.colorAttachments[0].writeMask = .all
         desc.depthAttachmentPixelFormat = depthFmt
         if depthFmt == .depth32Float_stencil8 || depthFmt == .x32_stencil8 {
             desc.stencilAttachmentPixelFormat = depthFmt
         }
-        desc.rasterSampleCount = drawable.colorTextures[0].sampleCount
+        desc.rasterSampleCount = samples
+        // CompositorServices pipelines must declare amplification count ==
+        // properties.viewCount even when each eye is rendered in its own pass
+        // — Metal's validator otherwise refuses the descriptor on visionOS.
+        desc.maxVertexAmplificationCount = viewCount
 
         do {
             self.pipelineState = try device.makeRenderPipelineState(descriptor: desc)
+            NSLog("BH PIPELINE: built successfully")
         } catch {
             fatalError("CompositorServices: pipeline build failed: \(error)")
         }

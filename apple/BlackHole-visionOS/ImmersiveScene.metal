@@ -27,9 +27,14 @@ struct SingleEyeUniforms {
 };
 
 // ---------- Vertex stage (single eye per pass) ----------
+//
+// `[[invariant]]` on the position output silences a visionOS-specific
+// validator complaint where same-vertex re-renders across eyes need
+// guaranteed-identical clip positions. Without it the post-compile
+// validator hard-asserts on Compositor pipelines.
 
 struct VSOut {
-    float4 position [[position]];
+    float4 position [[position, invariant]];
     float2 ndc;
 };
 
