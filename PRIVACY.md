@@ -1,9 +1,10 @@
 # Privacy Policy — BlackHole
 
-_Last updated: May 4, 2026_
+_Last updated: May 7, 2026_
 
-BlackHole is a real-time relativistic black-hole simulator for macOS and
-iOS, published by **Orch Aerospace, Inc.** ("we", "us"). This document
+BlackHole is a real-time relativistic black-hole simulator for macOS,
+iOS, and visionOS, published by **Orch Aerospace, Inc.** ("we", "us").
+This document
 describes what data the app does and does not handle. The short version:
 **we don't collect anything from you.**
 
@@ -15,8 +16,8 @@ information.
 
 We do not run analytics. We do not use crash-reporting SDKs. We do not
 embed Firebase, Sentry, Mixpanel, Amplitude, Segment, PostHog, Google
-Analytics, or any other third-party telemetry. The macOS and iOS
-binaries make no `URLSession` calls of their own.
+Analytics, or any other third-party telemetry. The macOS, iOS, and
+visionOS binaries make no `URLSession` calls of their own.
 
 ## Data the system handles on our behalf
 
@@ -59,12 +60,26 @@ The permission grant is one-way: write only.
 You can revoke access at any time in **Settings → Privacy & Security →
 Photos → BlackHole**.
 
+## Head and world tracking (visionOS only)
+
+The visionOS build declares `NSWorldSensingUsageDescription` so the
+simulation can respond to your viewpoint as you move your head. The
+system provides only the pose data the OS deems necessary to render
+the scene; we do not record, persist, or transmit it. No tracking
+data leaves your device.
+
+You can review or revoke this access in **Settings → Privacy &
+Security** on visionOS.
+
 ## Network access
 
-The macOS App Sandbox entitlements declare `network.client = false`
-and `network.server = false`. The macOS app cannot make outbound
-network connections of its own. The iOS build similarly does not
-initiate network requests outside system services.
+The macOS App Sandbox is enabled
+(`com.apple.security.app-sandbox = true`) and the app requests no
+network entitlements — neither `com.apple.security.network.client`
+nor `com.apple.security.network.server` is granted — so the macOS
+app cannot make outbound or accept inbound network connections of
+its own. The iOS and visionOS builds similarly do not initiate
+network requests outside system services.
 
 ## Children's privacy
 
