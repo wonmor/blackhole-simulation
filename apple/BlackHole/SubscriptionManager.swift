@@ -128,6 +128,37 @@ final class SubscriptionManager: ObservableObject {
         Task { await refreshEntitlements() }
     }
 
+    /// Re-reads current entitlements (used after StoreKit view purchases).
+    func refresh() async {
+        await refreshEntitlements()
+    }
+
+    /// Completion hook for `SubscriptionStoreView`'s `onInAppPurchaseCompletion`.
+    func handlePurchaseResult(_ product: Product,
+                              _ result: Result<Product.PurchaseResult, Error>) async {
+        switch result {
+        case .success(let purchase):
+            switch purchase {
+            case .success(let verification):
+                do {
+                    let transaction = try checkVerified(verification)
+                    await transaction.finish()
+                } catch {
+                    lastError = error.localizedDescription
+                }
+                await refreshEntitlements()
+            case .pending:
+                lastError = "Purchase pending approval."
+            case .userCancelled:
+                break
+            @unknown default:
+                break
+            }
+        case .failure(let error):
+            lastError = "Purchase failed: \(error.localizedDescription)"
+        }
+    }
+
     // MARK: - Free-trial preview
 
     /// Starts the 90-second free preview. No-op if not in `.available` state.

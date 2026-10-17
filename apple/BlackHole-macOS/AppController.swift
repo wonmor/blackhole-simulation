@@ -14,14 +14,25 @@ enum AppMode {
 ///   * Pro user                       → wallpaper mode permitted indefinitely
 ///   * Free user, preview .available  → 90s preview, then auto-expire to paywall
 ///   * Free user, preview .expired    → paywall sheet immediately
+///
+/// It also owns "bring the simulator window back": the app keeps running
+/// from the menu bar after its window is closed, so every menu action that
+/// needs a window host (sheets, paywall) goes through `showMainWindow`.
 @MainActor
 final class AppController: ObservableObject {
 
     @Published private(set) var mode: AppMode = .windowed
-    @Published var showAbout: Bool = false
 
     let wallpaper: WallpaperManager
     private var cancellables = Set<AnyCancellable>()
+
+    /// Re-opens the `Window("main")` scene. Set by `ContentView` from
+    /// `@Environment(\.openWindow)`; menu-bar callers may also pass their own
+    /// `OpenWindowAction` to `showMainWindow(using:)`.
+    var openMainWindow: (() -> Void)?
+
+    private weak var params: BlackHoleParameters?
+    private weak var subscription: SubscriptionManager?
 
     init() {
         self.wallpaper = WallpaperManager()
@@ -30,6 +41,8 @@ final class AppController: ObservableObject {
     /// Forwards subscription state changes (preview expiry) into mode changes.
     /// Idempotent — safe to call from `.task` even if SwiftUI re-fires it.
     func bind(subscription: SubscriptionManager, params: BlackHoleParameters) {
+        self.params = params
+        self.subscription = subscription
         cancellables.removeAll()
         subscription.$previewState
             .removeDuplicates()
@@ -38,12 +51,11 @@ final class AppController: ObservableObject {
                 if state == .expired && self.mode == .wallpaper {
                     self.wallpaper.markPreviewExpired()
                     // Clicking the wallpaper now exits to windowed + paywall.
-                    self.wallpaper.onExpiredClick = { [weak subscription, weak self] in
+                    self.wallpaper.onExpiredClick = { [weak self] in
                         Task { @MainActor in
-                            self?.setMode(.windowed,
-                                          params: params,
-                                          subscription: subscription ?? SubscriptionManager())
-                            subscription?.requestPaywall = true
+                            guard let self = self else { return }
+                            self.setMode(.windowed)
+                            self.requestPaywall()
                         }
                     }
                 }
@@ -51,10 +63,11 @@ final class AppController: ObservableObject {
             .store(in: &cancellables)
     }
 
-    func setMode(_ newMode: AppMode,
-                 params: BlackHoleParameters,
-                 subscription: SubscriptionManager) {
+    // MARK: - Mode switching
+
+    func setMode(_ newMode: AppMode) {
         if newMode == mode { return }
+        guard let params = params, let subscription = subscription else { return }
 
         if newMode == .wallpaper {
             if !subscription.isProUnlocked {
@@ -64,7 +77,7 @@ final class AppController: ObservableObject {
                 case .running:
                     break
                 case .expired:
-                    subscription.requestPaywall = true
+                    requestPaywall()
                     return
                 }
             }
@@ -74,8 +87,18 @@ final class AppController: ObservableObject {
         } else {
             mode = .windowed
             wallpaper.stop()
-            showMainWindows()
+            showMainWindow()
         }
+    }
+
+    /// Compatibility entry points used by `ContentView` / `MenuBarContent`.
+    func setMode(_ newMode: AppMode,
+                 params: BlackHoleParameters,
+                 subscription: SubscriptionManager) {
+        if self.params == nil || self.subscription == nil {
+            bind(subscription: subscription, params: params)
+        }
+        setMode(newMode)
     }
 
     func toggleMode(params: BlackHoleParameters, subscription: SubscriptionManager) {
@@ -83,23 +106,45 @@ final class AppController: ObservableObject {
                 params: params, subscription: subscription)
     }
 
-    // MARK: - Main window plumbing
-
-    private func hideMainWindows() {
-        for window in NSApplication.shared.windows where isUserWindow(window) {
-            window.orderOut(nil)
-        }
+    /// Shows the paywall on the main window, re-opening the window first.
+    func requestPaywall() {
+        showMainWindow()
+        subscription?.requestPaywall = true
     }
 
-    private func showMainWindows() {
+    // MARK: - Main window plumbing
+
+    /// Brings the simulator window to the front, leaving wallpaper mode if
+    /// needed and re-creating the window if the user closed it.
+    func showMainWindow(using open: OpenWindowAction? = nil) {
+        if mode == .wallpaper {
+            mode = .windowed
+            wallpaper.stop()
+        }
         var anyShown = false
         for window in NSApplication.shared.windows where isUserWindow(window) {
             window.makeKeyAndOrderFront(nil)
             anyShown = true
         }
         if !anyShown {
-            NSApplication.shared.activate(ignoringOtherApps: true)
+            if let open = open {
+                open(id: "main")
+            } else {
+                openMainWindow?()
+            }
         }
+        NSApplication.shared.activate(ignoringOtherApps: true)
+    }
+
+    func hideMainWindows() {
+        for window in NSApplication.shared.windows where isUserWindow(window) {
+            window.orderOut(nil)
+        }
+    }
+
+    /// True when a simulator window is on screen.
+    var isMainWindowVisible: Bool {
+        NSApplication.shared.windows.contains { isUserWindow($0) && $0.isVisible }
     }
 
     private func isUserWindow(_ window: NSWindow) -> Bool {

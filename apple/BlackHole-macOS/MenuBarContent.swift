@@ -1,46 +1,45 @@
 import SwiftUI
 
-/// Menu-bar dropdown content. The menu is always present; the wallpaper
-/// toggle is gated behind `subscription.isProUnlocked`.
+/// Menu-bar (status item) dropdown. The app keeps running here after its
+/// window is closed, so every item that needs a window first re-opens the
+/// simulator window through `AppController.showMainWindow`.
 struct MenuBarContent: View {
     @ObservedObject var params: BlackHoleParameters
     @ObservedObject var controller: AppController
     @ObservedObject var subscription: SubscriptionManager
     @ObservedObject var pomodoro: PomodoroTimer
+    @ObservedObject var ui: UIState
 
-    /// Triggers the windowed app to open the Pomodoro sheet. Set by macOSApp.
-    var onPomodoroTap: () -> Void = {}
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         // Mode
-        Button(controller.mode == .wallpaper
-               ? "Stop Live Wallpaper"
-               : (subscription.isProUnlocked ? "Set as Live Wallpaper" : "Set as Live Wallpaper · Pro")) {
+        Button(wallpaperLabel) {
             controller.toggleMode(params: params, subscription: subscription)
         }
-        .keyboardShortcut("L", modifiers: [.command, .option])
+        .keyboardShortcut("l", modifiers: [.command, .option])
 
-        Button(controller.mode == .windowed ? "Hide Window" : "Show Window") {
-            controller.setMode(controller.mode == .windowed ? .wallpaper : .windowed,
-                               params: params, subscription: subscription)
+        Button("Show Simulator Window") {
+            controller.showMainWindow(using: openWindow)
         }
-        .disabled(controller.mode == .wallpaper)  // can't show during wallpaper
+        Button("Hide Simulator Window") {
+            controller.hideMainWindows()
+        }
+        .disabled(controller.mode == .wallpaper)
 
         Divider()
 
-        // Quality
-        Menu("Quality") {
+        // Quality — Picker renders as a submenu with a checkmark on the
+        // active preset.
+        Picker("Quality", selection: $params.preset) {
             ForEach(QualityPreset.allCases) { preset in
-                Button {
-                    params.preset = preset
-                } label: {
-                    HStack {
-                        Text(preset.displayName)
-                        if params.preset == preset {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
+                Text(preset.displayName).tag(preset)
+            }
+        }
+
+        Menu("Load Scenario") {
+            ForEach(Scenario.allCases) { scenario in
+                Button(scenario.displayName) { scenario.apply(to: params) }
             }
         }
 
@@ -48,48 +47,26 @@ struct MenuBarContent: View {
 
         // Pomodoro
         Button(pomodoroLabel) {
-            if subscription.isProUnlocked {
-                if controller.mode == .wallpaper {
-                    controller.setMode(.windowed,
-                                       params: params,
-                                       subscription: subscription)
-                }
-                onPomodoroTap()
-            } else {
-                if controller.mode == .wallpaper {
-                    controller.setMode(.windowed,
-                                       params: params,
-                                       subscription: subscription)
-                }
-                subscription.requestPaywall = true
+            present {
+                if subscription.isProUnlocked { ui.showPomodoro = true }
+                else { subscription.requestPaywall = true }
             }
         }
-        .keyboardShortcut("P", modifiers: [.command, .option])
+        .keyboardShortcut("p", modifiers: [.command, .option])
 
         Divider()
 
         // Subscription
         if subscription.isProUnlocked {
             Button("Manage Subscription…") {
-                if let url = URL(string: "macappstore://apps.apple.com/account/subscriptions") {
-                    NSWorkspace.shared.open(url)
-                }
+                NSWorkspace.shared.open(AppLinks.manageSubscriptions)
             }
         } else {
-            Button("Subscribe to Pro…") {
-                // Sheet renders on the main window — bring it back if we're
-                // currently in wallpaper mode.
-                if controller.mode == .wallpaper {
-                    controller.setMode(.windowed,
-                                       params: params,
-                                       subscription: subscription)
-                }
-                subscription.requestPaywall = true
+            Button("Subscribe to BlackHole Pro…") {
+                present { subscription.requestPaywall = true }
             }
         }
 
-        // Debug toggle (visible in DEBUG builds via the Option key — discoverable
-        // without cluttering production menus).
         #if DEBUG
         Divider()
         Button(subscription.isProUnlocked ? "DEV · Lock Pro" : "DEV · Unlock Pro") {
@@ -99,23 +76,31 @@ struct MenuBarContent: View {
 
         Divider()
 
-        Button("About BlackHole") {
-            controller.showAbout = true
-            // Bring the windowed scene up so the sheet has a host.
-            if controller.mode == .wallpaper {
-                controller.setMode(.windowed,
-                                   params: params,
-                                   subscription: subscription)
-            }
-        }
+        Button("What is BlackHole?") { present { ui.showWelcome = true } }
+        Button("About BlackHole") { present { ui.showAbout = true } }
         Button("Quit BlackHole") {
             NSApplication.shared.terminate(nil)
         }
         .keyboardShortcut("q", modifiers: .command)
     }
 
+    private func present(_ action: @escaping () -> Void) {
+        controller.showMainWindow(using: openWindow)
+        DispatchQueue.main.async(execute: action)
+    }
+
+    private var wallpaperLabel: String {
+        if controller.mode == .wallpaper { return "Stop Live Wallpaper" }
+        if subscription.isProUnlocked { return "Set as Live Wallpaper" }
+        switch subscription.previewState {
+        case .available: return "Try Live Wallpaper (90 s preview)"
+        case .running:   return "Set as Live Wallpaper"
+        case .expired:   return "Set as Live Wallpaper (Pro)…"
+        }
+    }
+
     private var pomodoroLabel: String {
-        if pomodoro.phase == .idle { return subscription.isProUnlocked ? "Pomodoro…" : "Pomodoro · Pro" }
+        if pomodoro.phase == .idle { return subscription.isProUnlocked ? "Pomodoro Timer…" : "Pomodoro Timer (Pro)…" }
         return "Pomodoro · \(pomodoro.formattedTime) (\(pomodoro.phase.label))"
     }
 }

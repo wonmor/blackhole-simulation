@@ -4,14 +4,13 @@ struct ContentView: View {
     @ObservedObject var params: BlackHoleParameters
     @ObservedObject var subscription: SubscriptionManager
     @ObservedObject var pomodoro: PomodoroTimer
+    @ObservedObject var ui: UIState
 
-    @State private var showControls: Bool = false
-    @State private var showPomodoro: Bool = false
-    @State private var showAbout: Bool = false
     @State private var wallpaperToast: String? = nil
 
     #if os(macOS)
     @EnvironmentObject private var controller: AppController
+    @Environment(\.openWindow) private var openWindow
     #endif
 
     // Pinch-zoom state
@@ -23,8 +22,27 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var hostFocused: Bool = true
 
+    /// Space reserved above the overlay. On macOS the window uses
+    /// `.hiddenTitleBar`, so the traffic-light buttons sit on top of our
+    /// content; keep the HUD clear of them.
+    private var topInset: CGFloat {
+        #if os(macOS)
+        return 24
+        #else
+        return 0
+        #endif
+    }
+
+    /// Height of the footer credit plus its padding — the panels may never
+    /// grow into it.
+    private let footerReserve: CGFloat = 48
+
     var body: some View {
         GeometryReader { geo in
+            // Panels (HUD, control panel) scroll internally rather than
+            // overflowing the window when it is short.
+            let panelMaxHeight = max(220, geo.size.height - topInset - 32 - footerReserve)
+
             ZStack {
                 MetalView(params: params, paused: !hostFocused)
                     .ignoresSafeArea()
@@ -63,11 +81,13 @@ struct ContentView: View {
 
                 // Foreground UI layer
                 VStack(spacing: 0) {
-                    HStack(alignment: .top) {
-                        HUDView(params: params)
+                    HStack(alignment: .top, spacing: 12) {
+                        HUDView(params: params, showMath: $ui.showEquations)
+                            .frame(maxHeight: panelMaxHeight, alignment: .top)
                         Spacer(minLength: 0)
-                        controlsColumn
+                        controlsColumn(maxHeight: panelMaxHeight)
                     }
+                    .padding(.top, topInset)
                     .padding(16)
 
                     Spacer(minLength: 0)
@@ -79,14 +99,14 @@ struct ContentView: View {
             }
         }
         .background(Color.black)
-        .sheet(isPresented: $showPomodoro) {
+        .sheet(isPresented: $ui.showPomodoro) {
             PomodoroView(timer: pomodoro)
                 .padding(.horizontal, 8)
         }
         // iPhone-only: ControlPanel as a bottom sheet (avoids width clipping).
         .sheet(isPresented: Binding(
-            get: { showControls && usesSheetForControls },
-            set: { if !$0 { showControls = false } }
+            get: { ui.showControls && usesSheetForControls },
+            set: { if !$0 { ui.showControls = false } }
         )) {
             ScrollView {
                 controlPanelInstance
@@ -99,8 +119,12 @@ struct ContentView: View {
         .sheet(isPresented: $subscription.requestPaywall) {
             PaywallSheet(subscription: subscription)
         }
-        .sheet(isPresented: $showAbout) {
+        .sheet(isPresented: $ui.showAbout) {
             AboutSheet()
+                .padding(.horizontal, 8)
+        }
+        .sheet(isPresented: $ui.showWelcome, onDismiss: { ui.markWelcomeSeen() }) {
+            WelcomeSheet(ui: ui)
                 .padding(.horizontal, 8)
         }
         .alert("Wallpaper", isPresented: wallpaperToastBinding, actions: {
@@ -118,11 +142,16 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             hostFocused = true
         }
+        .task {
+            // Lets the menu bar / main menu re-open this window after the
+            // user closed it (the app keeps running from the menu bar).
+            controller.openMainWindow = { openWindow(id: "main") }
+        }
         #endif
     }
 
     @ViewBuilder
-    private var controlsColumn: some View {
+    private func controlsColumn(maxHeight: CGFloat) -> some View {
         VStack(alignment: .trailing, spacing: 8) {
             HStack(spacing: 8) {
                 #if os(macOS)
@@ -151,22 +180,23 @@ struct ContentView: View {
 
                 homeIconButton(symbol: "timer", help: "Pomodoro") {
                     if subscription.isProUnlocked {
-                        showPomodoro = true
+                        ui.showPomodoro = true
                     } else {
                         subscription.requestPaywall = true
                     }
                 }
 
-                homeIconButton(symbol: "slider.horizontal.3", help: "Controls") {
-                    withAnimation(.easeInOut(duration: 0.15)) { showControls.toggle() }
+                homeIconButton(symbol: "slider.horizontal.3", accent: ui.showControls, help: "Controls") {
+                    withAnimation(.easeInOut(duration: 0.15)) { ui.showControls.toggle() }
                 }
             }
 
             // On iPhone (compact width), the side panel doesn't fit alongside
             // the HUD — present as a bottom sheet instead. iPad / Mac /
             // visionOS keep the inline side panel.
-            if showControls && !usesSheetForControls {
+            if ui.showControls && !usesSheetForControls {
                 controlPanelInstance
+                    .frame(maxHeight: max(160, maxHeight - 44), alignment: .top)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
@@ -200,6 +230,7 @@ struct ContentView: View {
         }
         .buttonStyle(.plain)
         .help(help)
+        .accessibilityLabel(help)
     }
 
     private var controlPanelInstance: some View {
@@ -207,11 +238,11 @@ struct ContentView: View {
             params: params,
             subscription: subscription,
             pomodoro: pomodoro,
-            onPomodoroTap: { showPomodoro = true },
+            onPomodoroTap: { ui.showPomodoro = true },
             onWallpaperSaveTap: wallpaperSaveAction,
             onLiveWallpaperToggle: liveWallpaperToggleAction,
             liveWallpaperActive: liveWallpaperActive,
-            onAboutTap: { showAbout = true }
+            onAboutTap: { ui.showAbout = true }
         )
     }
 
@@ -285,6 +316,8 @@ private struct FooterView: View {
                 .font(.system(size: 9, weight: .regular, design: .rounded))
                 .foregroundColor(.white.opacity(0.30))
         }
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
         .frame(maxWidth: .infinity, alignment: .center)
         .allowsHitTesting(false)
     }

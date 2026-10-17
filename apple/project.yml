@@ -11,7 +11,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    DEVELOPMENT_TEAM: "LQ69YVA9KK"
+    DEVELOPMENT_TEAM: "Z64KRUX3W3"
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: NO
     SWIFT_STRICT_CONCURRENCY: minimal
@@ -45,9 +45,14 @@ targets:
         CFBundleVersion: "2"
         ITSAppUsesNonExemptEncryption: false
         NSPhotoLibraryAddUsageDescription: "BlackHole needs permission to save the current black-hole frame to your Photos so you can set it as your iPhone wallpaper. The app does not read or scan your existing photos."
+    scheme:
+      # Local StoreKit configuration so the paywall shows real titles,
+      # periods and prices when run from Xcode without a sandbox account.
+      storeKitConfiguration: BlackHole.storekit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.orchestrsim.blackholesim
+        CURRENT_PROJECT_VERSION: "2"
         # User-facing product name. Target name is suffixed -iOS for build
         # disambiguation, but the .app, executable, and CFBundleName must
         # be plain "BlackHole" — Apple rejects names containing "iOS" /
@@ -110,13 +115,16 @@ targets:
         LSMinimumSystemVersion: "14.0"
         NSHighResolutionCapable: YES
         CFBundleShortVersionString: "1.0.0"
-        CFBundleVersion: "2"
+        CFBundleVersion: "4"
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.entertainment
+    scheme:
+      storeKitConfiguration: BlackHole.storekit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.orchestrsim.blackholesim
         PRODUCT_NAME: BlackHole
+        CURRENT_PROJECT_VERSION: "4"
         GENERATE_INFOPLIST_FILE: NO
         MTL_ENABLE_DEBUG_INFO: INCLUDE_SOURCE
         MTL_FAST_MATH: YES

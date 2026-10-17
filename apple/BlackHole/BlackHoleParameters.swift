@@ -62,6 +62,32 @@ final class BlackHoleParameters: ObservableObject {
         load()
     }
 
+    /// Factory settings (the `high` web preset). Camera pose included.
+    func resetToDefaults() {
+        mass = 1.0
+        spin = 0.5
+        lensingStrength = 0.7
+        frameDragStrength = 2.0
+        diskDensity = 4.0
+        diskTemp = 9500.0
+        diskSize = 50.0
+        diskScaleHeight = 0.2
+        zoom = 100.0
+        yaw = 0.5
+        pitch = 0.539
+        autoSpin = 0.005
+        preset = .high
+        bloomThreshold = 1.0
+        bloomIntensity = 0.45
+        enableLensing = true
+        enableDisk = true
+        enableStars = true
+        enablePhotonGlow = true
+        enableDoppler = true
+        enableJets = true
+        showRedshift = false
+    }
+
     private static let prefix = "bh.params."
 
     private func persist<T>(_ key: String, _ value: T) {

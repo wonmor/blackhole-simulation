@@ -34,9 +34,41 @@ struct ControlPanel: View {
     private let cyan = Color(red: 0.55, green: 0.95, blue: 1.0)
 
     var body: some View {
+        // Fit the panel to its content when the window is tall enough;
+        // otherwise scroll inside the panel instead of overflowing the
+        // window (the cause of the clipped / overlapped text in review).
+        ViewThatFits(in: .vertical) {
+            panelContent
+            ScrollView(.vertical, showsIndicators: false) { panelContent }
+        }
+        .padding(14)
+        .frame(width: 290)
+        .background(panelBackground)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.20), Color.white.opacity(0.04)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.8
+                )
+        )
+        .shadow(color: .black.opacity(0.45), radius: 14, x: 0, y: 6)
+        .colorScheme(.dark)
+    }
+
+    private var panelContent: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
             qualityPicker
+
+            section(title: "Scenarios", isOpen: $openScenarios) {
+                ForEach(Scenario.allCases) { sc in
+                    scenarioCard(sc)
+                }
+            }
 
             section(title: "Geometry", isOpen: $openGeometry) {
                 slider("Mass",       value: $params.mass,            range: 0.1...10.0, format: "%.2f", unit: "M☉")
@@ -109,23 +141,6 @@ struct ControlPanel: View {
                 ])
             }
         }
-        .padding(14)
-        .frame(width: 290)
-        .frame(maxHeight: 640)
-        .background(panelBackground)
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.20), Color.white.opacity(0.04)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 0.8
-                )
-        )
-        .shadow(color: .black.opacity(0.45), radius: 14, x: 0, y: 6)
-        .colorScheme(.dark)
     }
 
     // MARK: - Header
@@ -135,6 +150,10 @@ struct ControlPanel: View {
             Image(systemName: "circle.dotted.circle.fill")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(cyan)
+            Text("KERR PARAMETERS")
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .tracking(1.4)
+                .foregroundColor(.white.opacity(0.55))
             Spacer()
             HStack(spacing: 6) {
                 headerIconButton(symbol: "info") {
@@ -147,7 +166,7 @@ struct ControlPanel: View {
                 .help("Reset to defaults")
             }
         }
-        .padding(.top, 16)
+        .padding(.top, 4)
     }
 
     @ViewBuilder
@@ -283,28 +302,7 @@ struct ControlPanel: View {
         pomodoro.longBreakMinutes = 15
         pomodoro.sessionsBeforeLongBreak = 4
         pomodoro.reset()
-        params.mass = 1.0
-        params.spin = 0.5
-        params.lensingStrength = 0.7
-        params.frameDragStrength = 2.0
-        params.diskDensity = 4.0
-        params.diskTemp = 9500.0
-        params.diskSize = 50.0
-        params.diskScaleHeight = 0.2
-        params.zoom = 100.0
-        params.yaw = 0.5
-        params.pitch = 0.539
-        params.autoSpin = 0.005
-        params.preset = .high
-        params.bloomThreshold = 1.0
-        params.bloomIntensity = 0.45
-        params.enableLensing = true
-        params.enableDisk = true
-        params.enableStars = true
-        params.enablePhotonGlow = true
-        params.enableDoppler = true
-        params.enableJets = true
-        params.showRedshift = false
+        params.resetToDefaults()
     }
 
     // MARK: - Tools section helpers

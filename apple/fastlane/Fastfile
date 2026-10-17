@@ -1,0 +1,108 @@
+# BlackHole — App Store Connect helper lanes.
+# Login uses the fastlane session cached in the macOS keychain for USERNAME;
+# nothing secret lives in this file.
+default_platform(:ios)
+
+APP_ID   = "com.orchestrsim.blackholesim"
+USERNAME = "wonmor@yahoo.com"
+TEAM_ID  = "Z64KRUX3W3"
+
+def connect_login
+  Spaceship::ConnectAPI.login(USERNAME, nil, use_portal: false, use_tunes: true, tunes_team_id: TEAM_ID)
+end
+
+def find_app
+  app = Spaceship::ConnectAPI::App.find(APP_ID)
+  UI.user_error!("App #{APP_ID} not found on App Store Connect") unless app
+  app
+end
+
+platform :ios do
+  desc "Show recent builds (both platforms) and every App Store version state"
+  lane :status do
+    connect_login
+    app = find_app
+    UI.message("app #{app.name} (#{app.id}) sku=#{app.sku} locale=#{app.primary_locale}")
+    rc = Spaceship::ConnectAPI.client.tunes_request_client
+    resp = rc.get("v1/builds", { "filter[app]" => app.id, "sort" => "-uploadedDate",
+                                 "include" => "preReleaseVersion", "limit" => 10 }).body
+    pre = {}
+    (resp["included"] || []).each { |i| pre[i["id"]] = i["attributes"] if i["type"] == "preReleaseVersions" }
+    (resp["data"] || []).each do |b|
+      a = b["attributes"]
+      prv = pre[b.dig("relationships", "preReleaseVersion", "data", "id")] || {}
+      UI.message("build #{a['version']} v#{prv['version']} platform=#{prv['platform']} state=#{a['processingState']} expired=#{a['expired']} uploaded=#{a['uploadedDate']}")
+    end
+    app.get_app_store_versions.each do |v|
+      UI.message("version #{v.version_string} platform=#{v.platform} state=#{v.app_store_state} id=#{v.id}")
+    end
+  end
+
+  desc "List every in-app purchase / subscription product ID on App Store Connect and diff with the code"
+  lane :iap do
+    connect_login
+    app = find_app
+    rc = Spaceship::ConnectAPI.client.tunes_request_client
+    code_ids = File.read(File.expand_path("../BlackHole/SubscriptionManager.swift", __dir__))
+                   .scan(/"(com\.orchestrsim\.blackholesim\.[a-z_]+)"/).flatten.uniq
+    asc_ids = []
+    groups = rc.get("v1/apps/#{app.id}/subscriptionGroups", { "limit" => 50 }).body["data"] || []
+    groups.each do |g|
+      UI.message("subscription group '#{g['attributes']['referenceName']}' id=#{g['id']}")
+      glocs = rc.get("v1/subscriptionGroups/#{g['id']}/subscriptionGroupLocalizations", { "limit" => 50 }).body["data"] || []
+      glocs.each { |l| la = l["attributes"]; UI.message("  group loc #{la['locale']}: name='#{la['name']}' customAppName='#{la['customAppName']}' state=#{la['state']}") }
+      UI.important("  NO group localizations for '#{g['attributes']['referenceName']}'") if glocs.empty?
+      subs = rc.get("v1/subscriptionGroups/#{g['id']}/subscriptions", { "limit" => 50 }).body["data"] || []
+      subs.each do |s|
+        a = s["attributes"]
+        asc_ids << a["productId"]
+        UI.message("  sub '#{a['name']}' productId=#{a['productId']} period=#{a['subscriptionPeriod']} state=#{a['state']} familySharable=#{a['familySharable']}")
+        locs = rc.get("v1/subscriptions/#{s['id']}/subscriptionLocalizations", { "limit" => 50 }).body["data"] || []
+        locs.each { |l| la = l["attributes"]; UI.message("    loc #{la['locale']}: name='#{la['name']}' desc='#{la['description']}' state=#{la['state']}") }
+        UI.important("    NO localizations (display name/description) for #{a['productId']}") if locs.empty?
+        prices = rc.get("v1/subscriptions/#{s['id']}/prices", { "limit" => 5, "include" => "subscriptionPricePoint,territory" }).body
+        pts = (prices["included"] || []).select { |i| i["type"] == "subscriptionPricePoints" }
+        UI.message("    prices: #{(prices['data'] || []).count} rows; sample price points #{pts.first(3).map { |x| x['attributes']['customerPrice'] }.inspect}")
+        UI.important("    NO prices for #{a['productId']}") if (prices["data"] || []).empty?
+        begin
+          shot = rc.get("v1/subscriptions/#{s['id']}/appStoreReviewScreenshot").body["data"]
+          UI.message("    review screenshot: #{shot ? shot['attributes']['assetDeliveryState'].inspect : 'NONE'}")
+        rescue => e
+          UI.message("    review screenshot: unavailable (#{e.class})")
+        end
+        avail = rc.get("v1/subscriptions/#{s['id']}/subscriptionAvailability", { "include" => "availableTerritories", "limit[availableTerritories]" => 1 }).body rescue nil
+        UI.message("    availability: #{avail ? (avail.dig('data','attributes')).inspect : 'NONE'}")
+      end
+    end
+    iaps = rc.get("v1/apps/#{app.id}/inAppPurchasesV2", { "limit" => 50 }).body["data"] || []
+    iaps.each do |i|
+      a = i["attributes"]
+      asc_ids << a["productId"]
+      UI.message("iap '#{a['name']}' productId=#{a['productId']} type=#{a['inAppPurchaseType']} state=#{a['state']}")
+    end
+    UI.message("code IDs: #{code_ids.inspect}")
+    UI.message("ASC  IDs: #{asc_ids.inspect}")
+    missing = code_ids - asc_ids
+    extra   = asc_ids - code_ids
+    UI.important("In code but NOT on ASC: #{missing.inspect}") unless missing.empty?
+    UI.important("On ASC but NOT in code: #{extra.inspect}") unless extra.empty?
+    UI.success("Product IDs match") if missing.empty? && extra.empty?
+  end
+end
+
+platform :ios do
+  desc "Archive + upload both platforms with xcodebuild (needs the Apple Account signed in to Xcode ▸ Settings ▸ Accounts)"
+  lane :upload do
+    root = File.expand_path("..", __dir__)
+    out  = File.join(root, "build", "archives")
+    FileUtils.mkdir_p(out)
+    { "BlackHole-macOS" => "generic/platform=macOS", "BlackHole-iOS" => "generic/platform=iOS" }.each do |scheme, dest|
+      archive = File.join(out, "#{scheme}.xcarchive")
+      sh("xcodebuild -project '#{root}/BlackHole.xcodeproj' -scheme #{scheme} -configuration Release " \
+         "-destination '#{dest}' -archivePath '#{archive}' -allowProvisioningUpdates archive")
+      sh("xcodebuild -exportArchive -archivePath '#{archive}' -exportOptionsPlist '#{root}/ExportOptions.plist' " \
+         "-exportPath '#{out}/#{scheme}-export' -allowProvisioningUpdates")
+    end
+    UI.success("Both archives exported with destination=upload; run `fastlane status` to watch processing")
+  end
+end

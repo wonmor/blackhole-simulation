@@ -1,42 +1,53 @@
 import SwiftUI
 import StoreKit
 
-/// Sheet shown when the user tries to enable the live wallpaper without an
-/// active Pro subscription. Lists available products, has Subscribe/Restore
-/// buttons, and standard footer links.
+/// Pro paywall. Built on StoreKit 2's `SubscriptionStoreView` so every
+/// auto-renewable plan is listed with its App Store title, billing period
+/// and localized price, with Terms of Use (Apple's standard EULA) and the
+/// Privacy Policy linked right in the sheet (App Review Guideline 3.1.2).
+///
+/// Shown when the user opens a Pro feature (live wallpaper on macOS, the
+/// Pomodoro timer) without an active subscription.
 struct PaywallSheet: View {
     @ObservedObject var subscription: SubscriptionManager
     @Environment(\.dismiss) private var dismiss
 
-    @State private var purchasing: Bool = false
-    @State private var selectedID: String?
-
     private let cyan = Color(red: 0.55, green: 0.95, blue: 1.0)
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(spacing: 0) {
+            // Title, plan names/lengths and the policy links live OUTSIDE the
+            // StoreKit view so they are readable even while products load
+            // (or if the App Store cannot be reached).
             header
-            features
-            products
-            Spacer(minLength: 4)
-            footer
-        }
-        .padding(24)
-        .frame(width: 460)
-        .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.ultraThinMaterial)
-                RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.black.opacity(0.30))
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
+                .padding(.bottom, 12)
+
+            SubscriptionStoreView(productIDs: SubscriptionManager.productIDs) {
+                marketingContent
             }
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(colors: [.white.opacity(0.20), .white.opacity(0.04)],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing),
-                    lineWidth: 0.8
-                )
-        )
+            .subscriptionStoreControlStyle(.prominentPicker)
+            .subscriptionStoreButtonLabel(.multiline)
+            .subscriptionStorePolicyDestination(url: AppLinks.termsOfUse, for: .termsOfService)
+            .subscriptionStorePolicyDestination(url: AppLinks.privacyPolicy, for: .privacyPolicy)
+            .storeButton(.visible, for: .restorePurchases)
+            .storeButton(.visible, for: .policies)
+            .storeButton(.hidden, for: .cancellation)   // own close button in the header
+            .onInAppPurchaseCompletion { product, result in
+                await subscription.handlePurchaseResult(product, result)
+                if subscription.isProUnlocked { dismiss() }
+            }
+            .tint(cyan)
+
+            legal
+                .padding(.horizontal, 24)
+                .padding(.vertical, 12)
+        }
+        #if os(macOS)
+        .frame(width: 540, height: 680)
+        #endif
+        .background(Color.black.opacity(0.92))
         .colorScheme(.dark)
         .alert("StoreKit Error", isPresented: errorBinding) {
             Button("OK", role: .cancel) { subscription.lastError = nil }
@@ -45,7 +56,17 @@ struct PaywallSheet: View {
         }
     }
 
-    // MARK: - Sections
+    // MARK: - Marketing content (scrolls above the plan picker)
+
+    private var marketingContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            features
+            planSummary
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+    }
 
     private var header: some View {
         HStack(alignment: .top) {
@@ -53,9 +74,10 @@ struct PaywallSheet: View {
                 Text("BlackHole Pro")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
-                Text("Live Kerr black hole on your desktop.")
+                Text("Auto-renewable subscription, monthly or yearly. The simulator, every slider, scenario, equation and quality preset stay free.")
                     .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.55))
+                    .foregroundColor(.white.opacity(0.60))
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
             Button {
@@ -69,100 +91,85 @@ struct PaywallSheet: View {
                     .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.6))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Close")
+            .keyboardShortcut(.cancelAction)
         }
     }
 
     private var features: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Feature(icon: "sparkles", text: "Live Kerr black hole as desktop wallpaper")
-            Feature(icon: "square.grid.2x2", text: "Multi-display support")
-            Feature(icon: "cursorarrow.motionlines", text: "Mouse-tracking parallax camera")
-            Feature(icon: "speedometer", text: "Adaptive resolution + temporal AA")
+            #if os(macOS)
+            Feature(icon: "rectangle.on.rectangle", text: "Live Kerr black hole as your desktop wallpaper (all displays, mouse parallax)")
+            #endif
+            Feature(icon: "timer", text: "Pomodoro focus timer over the simulation")
+            Feature(icon: "arrow.triangle.2.circlepath", text: "One purchase unlocks Pro on iPhone, iPad and Mac")
         }
     }
 
-    private var products: some View {
-        VStack(spacing: 8) {
+    /// Plain-text listing of every plan: name, billing length and price, so
+    /// the terms are readable even before the picker below finishes loading.
+    private var planSummary: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("PLANS")
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .tracking(1.4)
+                .foregroundColor(cyan.opacity(0.85))
             if subscription.products.isEmpty {
-                if subscription.isLoadingProducts {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 20)
-                } else {
-                    Text("Subscriptions are unavailable right now. Try again later.")
-                        .font(.system(size: 11))
-                        .foregroundColor(.white.opacity(0.55))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                }
+                Text(subscription.isLoadingProducts
+                     ? "Loading plans from the App Store…"
+                     : "BlackHole Pro Monthly (billed every month) and BlackHole Pro Yearly (billed every year). Prices appear below once the App Store responds.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.60))
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
                 ForEach(subscription.products, id: \.id) { product in
-                    ProductRow(product: product,
-                               isSelected: selectedID == product.id,
-                               accent: cyan)
-                        .onTapGesture { selectedID = product.id }
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(product.displayName.isEmpty ? fallbackName(product) : product.displayName)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.white.opacity(0.92))
+                        Spacer(minLength: 8)
+                        Text("\(product.displayPrice) / \(periodLabel(product))")
+                            .font(.system(size: 12, weight: .medium, design: .rounded).monospacedDigit())
+                            .foregroundColor(.white.opacity(0.85))
+                    }
                 }
             }
-            Button {
-                Task { await purchase() }
-            } label: {
-                HStack {
-                    if purchasing { ProgressView().controlSize(.small) }
-                    Text(purchaseLabel)
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(canPurchase ? cyan : Color.white.opacity(0.12))
-                )
-                .foregroundColor(canPurchase ? .black : .white.opacity(0.5))
-            }
-            .buttonStyle(.plain)
-            .disabled(!canPurchase || purchasing)
         }
-        .padding(.top, 6)
     }
 
-    private var footer: some View {
-        HStack {
-            Button("Restore Purchase") {
-                Task { await subscription.restore() }
+    private var legal: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Payment is charged to your Apple Account when you confirm the purchase. The subscription renews automatically at the same price and length unless it is cancelled at least 24 hours before the end of the current period. Manage or cancel it any time in your Apple Account subscription settings.")
+                .font(.system(size: 10))
+                .foregroundColor(.white.opacity(0.45))
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 6) {
+                Link("Terms of Use (EULA)", destination: AppLinks.termsOfUse)
+                Text("·").foregroundColor(.white.opacity(0.30))
+                Link("Privacy Policy", destination: AppLinks.privacyPolicy)
             }
-            .buttonStyle(.plain)
-            .font(.system(size: 11))
-            .foregroundColor(.white.opacity(0.65))
-
-            Spacer()
-
-            // Apple's standard EULA — the default Terms of Use for any app
-            // that doesn't ship its own. Required for subscriptions per
-            // App Review Guideline 3.1.2.
-            Link("Terms of Use",
-                 destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
-                .font(.system(size: 11))
-                .foregroundColor(.white.opacity(0.55))
-            Text("·").foregroundColor(.white.opacity(0.30))
-            Link("Privacy Policy",
-                 destination: URL(string: "https://github.com/wonmor/blackhole-simulation/blob/main/PRIVACY.md")!)
-                .font(.system(size: 11))
-                .foregroundColor(.white.opacity(0.55))
+            .font(.system(size: 11, weight: .medium))
+            .foregroundColor(cyan)
         }
     }
 
     // MARK: - Helpers
 
-    private var canPurchase: Bool {
-        guard let id = selectedID else { return false }
-        return subscription.products.contains(where: { $0.id == id })
+    private func fallbackName(_ product: Product) -> String {
+        product.id.contains("yearly") ? "BlackHole Pro Yearly" : "BlackHole Pro Monthly"
     }
 
-    private var purchaseLabel: String {
-        guard let id = selectedID,
-              let p = subscription.products.first(where: { $0.id == id })
-        else { return "Subscribe" }
-        return "Subscribe — \(p.displayPrice)"
+    private func periodLabel(_ product: Product) -> String {
+        guard let period = product.subscription?.subscriptionPeriod else { return "period" }
+        let unit: String
+        switch period.unit {
+        case .day:   unit = "day"
+        case .week:  unit = "week"
+        case .month: unit = "month"
+        case .year:  unit = "year"
+        @unknown default: unit = "period"
+        }
+        return period.value == 1 ? unit : "\(period.value) \(unit)s"
     }
 
     private var errorBinding: Binding<Bool> {
@@ -171,86 +178,22 @@ struct PaywallSheet: View {
             set: { _ in subscription.lastError = nil }
         )
     }
-
-    private func purchase() async {
-        guard let id = selectedID,
-              let product = subscription.products.first(where: { $0.id == id })
-        else { return }
-        purchasing = true
-        await subscription.purchase(product)
-        purchasing = false
-        if subscription.isProUnlocked { dismiss() }
-    }
 }
 
 private struct Feature: View {
     let icon: String
     let text: String
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .top, spacing: 8) {
             Image(systemName: icon)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(Color(red: 0.55, green: 0.95, blue: 1.0))
                 .frame(width: 16, alignment: .center)
+                .padding(.top, 1)
             Text(text)
                 .font(.system(size: 12))
                 .foregroundColor(.white.opacity(0.85))
-        }
-    }
-}
-
-private struct ProductRow: View {
-    let product: Product
-    let isSelected: Bool
-    let accent: Color
-
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(product.displayName.isEmpty ? friendlyName : product.displayName)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white)
-                Text(billingDescription)
-                    .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.55))
-            }
-            Spacer()
-            Text(product.displayPrice)
-                .font(.system(size: 13, weight: .semibold, design: .rounded).monospacedDigit())
-                .foregroundColor(.white)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(isSelected ? accent.opacity(0.18) : Color.white.opacity(0.05))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(isSelected ? accent.opacity(0.55) : Color.white.opacity(0.12), lineWidth: 0.8)
-        )
-        .contentShape(Rectangle())
-    }
-
-    private var friendlyName: String {
-        product.id.contains("yearly") ? "Pro · Yearly" : "Pro · Monthly"
-    }
-
-    private var billingDescription: String {
-        if let sub = product.subscription {
-            let p = sub.subscriptionPeriod
-            return "Renews every \(p.value) \(unitName(p.unit))"
-        }
-        return "Auto-renewing subscription"
-    }
-
-    private func unitName(_ u: Product.SubscriptionPeriod.Unit) -> String {
-        switch u {
-        case .day:   return "day"
-        case .week:  return "week"
-        case .month: return "month"
-        case .year:  return "year"
-        @unknown default: return "period"
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

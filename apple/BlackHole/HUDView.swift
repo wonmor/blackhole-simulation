@@ -6,22 +6,16 @@ import SwiftUI
 /// renderer evaluates per pixel.
 struct HUDView: View {
     @ObservedObject var params: BlackHoleParameters
-    @State private var showMath: Bool = false
+    /// Expanded equation list. Owned by `UIState` so the macOS View menu can
+    /// toggle it too.
+    @Binding var showMath: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            performanceBlock
-            divider
-            physicsBlock
-
-            if showMath {
-                divider
-                MathPanel()
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .move(edge: .top)),
-                        removal: .opacity
-                    ))
-            }
+        // When the window is shorter than the expanded equation list, the
+        // panel scrolls instead of spilling over the footer.
+        ViewThatFits(in: .vertical) {
+            content
+            ScrollView(.vertical, showsIndicators: false) { content }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -51,6 +45,23 @@ struct HUDView: View {
     }
 
     // MARK: - Sections
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            performanceBlock
+            divider
+            physicsBlock
+
+            if showMath {
+                divider
+                MathPanel()
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity
+                    ))
+            }
+        }
+    }
 
     private var performanceBlock: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -99,6 +110,8 @@ struct HUDView: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .help(showMath ? "Hide equations" : "Show the equations the renderer evaluates")
+                .accessibilityLabel("Equations")
             }
             HStack(spacing: 6) {
                 Tag(text: params.preset.displayName.uppercased(), tone: .accent)
@@ -180,12 +193,12 @@ private struct MathPanel: View {
             )
             equation(
                 title: "Photon sphere",
-                formula: eq("r_ph = 2M[1 + cos(⅔ arccos(−a*))]"),
+                formula: eq("r_{ph} = 2M[1 + cos(⅔ arccos(−a*))]"),
                 cite: "Bardeen 1973"
             )
             equation(
                 title: "ISCO",
-                formula: eq("r_ISCO = M[3 + Z₂ − √((3−Z₁)(3+Z₁+2Z₂))]"),
+                formula: eq("r_{ISCO} = M[3 + Z₂ − √((3−Z₁)(3+Z₁+2Z₂))]"),
                 cite: "Bardeen, Press & Teukolsky 1972"
             )
             equation(
@@ -219,7 +232,7 @@ private struct MathPanel: View {
             )
             equation(
                 title: "Novikov–Thorne T(r)",
-                formula: eq("T ∝ T₀ (r_ISCO/r)^(3/4) (1 − √(r_ISCO/r))^(1/4) · δ"),
+                formula: eq("T ∝ T₀ (r_{ISCO}/r)^(3/4) (1 − √(r_{ISCO}/r))^(1/4) · δ"),
                 cite: "Novikov & Thorne 1973"
             )
             equation(
