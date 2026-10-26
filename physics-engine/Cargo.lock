@@ -60,6 +60,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "gravitas-ffi"
+version = "0.1.0"
+dependencies = [
+ "gravitas-core",
+]
+
+[[package]]
 name = "gravitas-wasm"
 version = "0.1.0"
 dependencies = [
