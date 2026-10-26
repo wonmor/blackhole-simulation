@@ -44,8 +44,10 @@ struct WelcomeSheet: View {
                        "Mass, spin a*, lensing, frame-dragging, disk size, density, temperature and scale height. The HUD reports the event horizon, photon sphere and ISCO radii as you drag.")
                 bullet("function", "See the equations",
                        "Tap EQS in the HUD to list every closed-form equation the shader evaluates, with its literature citation (Bardeen, Page–Thorne, Novikov–Thorne).")
-                bullet("star.fill", "Load a scenario",
+                bullet("sparkles", "Load a scenario",
                        "One tap jumps to a stellar-mass hole, a Sgr A* proxy, a near-extremal Kerr hole, or a non-rotating Schwarzschild hole.")
+                bullet("graduationcap", "Take a lesson",
+                       "Short guided tours set up the simulator and explain the shadow, lensing, Doppler beaming and more.")
                 bullet("hand.draw", "Explore",
                        "Drag to orbit, pinch or scroll to zoom from the photon ring out past the disk.")
             }
@@ -117,11 +119,13 @@ struct WelcomeSheet: View {
         }
     }
 
+    /// The real app icon as the brand mark.
     private var logo: some View {
-        ZStack {
-            Circle().strokeBorder(cyan.opacity(0.55), lineWidth: 1).frame(width: 42, height: 42)
-            Circle().fill(.black).frame(width: 22, height: 22)
-            Circle().strokeBorder(.white, lineWidth: 0.6).frame(width: 30, height: 30)
-        }
+        Image("BrandMark")
+            .resizable()
+            .interpolation(.high)
+            .frame(width: 44, height: 44)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .accessibilityHidden(true)
     }
 }

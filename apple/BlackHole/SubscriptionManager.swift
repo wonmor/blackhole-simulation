@@ -23,6 +23,14 @@ final class SubscriptionManager: ObservableObject {
     /// (menu bar, ControlPanel, AppController) flips this true; the view
     /// tree presents `PaywallSheet` on its primary window.
     @Published var requestPaywall: Bool = false
+    /// Which locked feature opened the paywall, shown as its headline.
+    @Published var paywallReason: String?
+
+    /// Opens the paywall, optionally naming the feature the user tapped.
+    func showPaywall(_ reason: String? = nil) {
+        paywallReason = reason
+        requestPaywall = true
+    }
 
     /// Hybrid free-trial: 90 seconds of live wallpaper per app launch.
     @Published private(set) var previewState: PreviewState = .available
@@ -36,10 +44,25 @@ final class SubscriptionManager: ObservableObject {
     /// `.mac` suffix) because we ship under Universal Purchase — a single App
     /// Store record covers iOS + iPadOS + macOS, and one purchase entitles the
     /// user across every platform.
-    static let productIDs: [String] = [
-        "com.orchestrsim.blackholesim.pro_monthly",
-        "com.orchestrsim.blackholesim.pro_yearly",
-    ]
+    static let monthlyID  = "com.orchestrsim.blackholesim.pro_monthly"
+    static let yearlyID   = "com.orchestrsim.blackholesim.pro_yearly"
+    /// One-time, non-consumable purchase that unlocks Pro forever.
+    static let lifetimeID = "com.orchestrsim.blackholesim.pro_lifetime"
+
+    /// Auto-renewable subscriptions (the "BlackHole Pro" group).
+    static let subscriptionIDs: [String] = [monthlyID, yearlyID]
+    /// Every product that grants Pro.
+    static let productIDs: [String] = [monthlyID, yearlyID, lifetimeID]
+
+    /// Subscriptions whose introductory offer (free trial) this Apple Account
+    /// is still eligible for.
+    @Published private(set) var introEligible: Set<String> = []
+    /// True while a purchase or restore is in flight (drives button spinners).
+    @Published private(set) var isPurchasing: Bool = false
+    /// Product id of the active entitlement, if any.
+    @Published private(set) var activeProductID: String?
+
+    func product(_ id: String) -> Product? { products.first { $0.id == id } }
 
     private static let devOverrideKey = "dev_pro_override"
 
@@ -57,6 +80,9 @@ final class SubscriptionManager: ObservableObject {
         }
 
         Task {
+            for await result in Transaction.unfinished {
+                if case .verified(let t) = result { await t.finish() }
+            }
             await refreshEntitlements()
             await loadProducts()
         }
@@ -74,12 +100,22 @@ final class SubscriptionManager: ObservableObject {
         do {
             let fetched = try await Product.products(for: Self.productIDs)
             self.products = fetched.sorted { $0.price < $1.price }
+            var eligible: Set<String> = []
+            for p in fetched {
+                if let sub = p.subscription, sub.introductoryOffer != nil,
+                   await sub.isEligibleForIntroOffer {
+                    eligible.insert(p.id)
+                }
+            }
+            self.introEligible = eligible
         } catch {
             self.lastError = "Failed to load products: \(error.localizedDescription)"
         }
     }
 
     func purchase(_ product: Product) async {
+        isPurchasing = true
+        defer { isPurchasing = false }
         do {
             #if os(visionOS)
             // visionOS requires a UIScene anchor for the purchase confirmation UI.
@@ -113,9 +149,14 @@ final class SubscriptionManager: ObservableObject {
     }
 
     func restore() async {
+        isPurchasing = true
+        defer { isPurchasing = false }
         do {
             try await AppStore.sync()
             await refreshEntitlements()
+            if !isProUnlocked {
+                lastError = "No previous BlackHole Pro purchase was found for this Apple Account."
+            }
         } catch {
             lastError = "Restore failed: \(error.localizedDescription)"
         }
@@ -196,15 +237,19 @@ final class SubscriptionManager: ObservableObject {
         let override = UserDefaults.standard.bool(forKey: Self.devOverrideKey)
         var unlocked = override
 
+        var active: String? = nil
         if !unlocked {
             for await result in Transaction.currentEntitlements {
                 if case .verified(let t) = result, Self.productIDs.contains(t.productID) {
+                    if t.revocationDate != nil { continue }
                     if let exp = t.expirationDate, exp <= Date() { continue }
                     unlocked = true
-                    break
+                    // Prefer reporting the lifetime unlock if both exist.
+                    if active == nil || t.productID == Self.lifetimeID { active = t.productID }
                 }
             }
         }
+        self.activeProductID = active
         self.isProUnlocked = unlocked
     }
 

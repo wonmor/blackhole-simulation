@@ -58,6 +58,8 @@ struct MetalView: PlatformViewRepresentable {
 
         #if os(iOS)
         WallpaperSaver.shared.mtkView = view
+        ExportStudio.shared.mtkView = view
+        ExportStudio.shared.renderer = renderer
         #endif
     }
 

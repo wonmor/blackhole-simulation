@@ -550,3 +550,187 @@ final class Renderer: NSObject, MTKViewDelegate {
         return r
     }
 }
+
+// MARK: - Offscreen export (Pro: 4K poster, orbit video)
+
+extension Renderer {
+
+    /// Render targets for an offscreen export at a fixed size. Reused across
+    /// the frames of a video so the allocator isn't hit per frame.
+    final class ExportTargets {
+        let width: Int
+        let height: Int
+        let scene: MTLTexture
+        let history: [MTLTexture]
+        let bright: MTLTexture
+        let scratch: MTLTexture
+        let output: MTLTexture
+        let readback: MTLBuffer
+        var historyIdx = 0
+        var bytesPerRow: Int { width * 4 }
+
+        init?(renderer r: Renderer, width: Int, height: Int) {
+            self.width = width
+            self.height = height
+            scene = r.makeRT(w: width, h: height, label: "export.scene")
+            history = [r.makeRT(w: width, h: height, label: "export.h0"),
+                       r.makeRT(w: width, h: height, label: "export.h1")]
+            bright = r.makeRT(w: max(1, width / 2), h: max(1, height / 2), label: "export.bright")
+            scratch = r.makeRT(w: max(1, width / 2), h: max(1, height / 2), label: "export.scratch")
+            let od = MTLTextureDescriptor.texture2DDescriptor(
+                pixelFormat: r.drawableFormat, width: width, height: height, mipmapped: false)
+            od.usage = [.renderTarget, .shaderRead]
+            od.storageMode = .private
+            guard let out = r.device.makeTexture(descriptor: od),
+                  let buf = r.device.makeBuffer(length: width * 4 * height, options: [.storageModeShared])
+            else { return nil }
+            output = out
+            readback = buf
+        }
+    }
+
+    /// Camera + time for one exported frame.
+    struct ExportCamera {
+        var yaw: Float
+        var pitch: Float
+        var zoom: Float
+        var time: Float
+    }
+
+    /// The camera the live view is showing right now.
+    func currentExportCamera() -> ExportCamera {
+        ExportCamera(yaw: displayedYaw, pitch: displayedPitch, zoom: displayedZoom,
+                     time: Float(CFAbsoluteTimeGetCurrent() - startTime))
+    }
+
+    /// Renders one frame into `t.readback` (BGRA8, `t.bytesPerRow` stride).
+    /// `passes` jittered sub-frames are accumulated with a running average
+    /// (TAA feedback k/(k+1)) for clean supersampled edges. Each pass is its
+    /// own command buffer so no single GPU submission runs long enough to
+    /// trip the watchdog. Must be called on the main actor (reads params).
+    @MainActor
+    func renderExportFrame(into t: ExportTargets, camera: ExportCamera,
+                           raySteps: Int, passes: Int) async {
+        let mask = currentSceneMask()
+        let scenePSO = scenePipeline(forMask: mask)
+        let bloom = true   // exports always get the full HDR bloom pass
+        let passes = max(1, passes)
+
+        for k in 0..<passes {
+            var u = makeUniformsForExport(width: t.width, height: t.height,
+                                          camera: camera, raySteps: raySteps, pass: k)
+            u.taaFeedback = k == 0 ? 0.0 : Float(k) / Float(k + 1)
+            guard let ubuf = device.makeBuffer(bytes: &u, length: MemoryLayout<BHUniforms>.stride,
+                                               options: [.storageModeShared]),
+                  let cb = queue.makeCommandBuffer() else { return }
+            cb.label = "export pass \(k)"
+
+            renderToTexture(commandBuffer: cb, target: t.scene, label: "export.scene") { enc in
+                enc.setRenderPipelineState(scenePSO)
+                enc.setVertexBuffer(ubuf, offset: 0, index: 0)
+                enc.setFragmentBuffer(ubuf, offset: 0, index: 0)
+                enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+            }
+            let prev = t.history[1 - t.historyIdx]
+            let resolved = t.history[t.historyIdx]
+            renderToTexture(commandBuffer: cb, target: resolved, label: "export.taa") { enc in
+                enc.setRenderPipelineState(taaPipeline)
+                enc.setFragmentBuffer(ubuf, offset: 0, index: 0)
+                enc.setFragmentTexture(t.scene, index: 0)
+                enc.setFragmentTexture(prev, index: 1)
+                enc.setFragmentSamplerState(bilinearSampler, index: 0)
+                enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+            }
+            t.historyIdx = 1 - t.historyIdx
+
+            if k == passes - 1 {
+                if bloom {
+                    renderToTexture(commandBuffer: cb, target: t.bright, label: "export.bright") { enc in
+                        enc.setRenderPipelineState(brightPipeline)
+                        enc.setFragmentBuffer(ubuf, offset: 0, index: 0)
+                        enc.setFragmentTexture(resolved, index: 0)
+                        enc.setFragmentSamplerState(bilinearSampler, index: 0)
+                        enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+                    }
+                    renderToTexture(commandBuffer: cb, target: t.scratch, label: "export.blurH") { enc in
+                        enc.setRenderPipelineState(blurHPipeline)
+                        enc.setFragmentTexture(t.bright, index: 0)
+                        enc.setFragmentSamplerState(bilinearSampler, index: 0)
+                        enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+                    }
+                    renderToTexture(commandBuffer: cb, target: t.bright, label: "export.blurV") { enc in
+                        enc.setRenderPipelineState(blurVPipeline)
+                        enc.setFragmentTexture(t.scratch, index: 0)
+                        enc.setFragmentSamplerState(bilinearSampler, index: 0)
+                        enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+                    }
+                }
+                renderToTexture(commandBuffer: cb, target: t.output, label: "export.composite") { enc in
+                    enc.setRenderPipelineState(compositePipeline)
+                    enc.setFragmentBuffer(ubuf, offset: 0, index: 0)
+                    enc.setFragmentTexture(resolved, index: 0)
+                    enc.setFragmentTexture(bloom ? t.bright : t.scene, index: 1)
+                    enc.setFragmentSamplerState(bilinearSampler, index: 0)
+                    enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+                }
+                if let blit = cb.makeBlitCommandEncoder() {
+                    blit.copy(from: t.output, sourceSlice: 0, sourceLevel: 0,
+                              sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+                              sourceSize: MTLSize(width: t.width, height: t.height, depth: 1),
+                              to: t.readback, destinationOffset: 0,
+                              destinationBytesPerRow: t.bytesPerRow,
+                              destinationBytesPerImage: t.bytesPerRow * t.height)
+                    blit.endEncoding()
+                }
+            }
+            await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                cb.addCompletedHandler { _ in cont.resume() }
+                cb.commit()
+            }
+        }
+    }
+
+    /// Reads the BGRA bytes of the last exported frame into a CGImage.
+    func exportImage(from t: ExportTargets) -> CGImage? {
+        let data = Data(bytes: t.readback.contents(), count: t.bytesPerRow * t.height)
+        guard let provider = CGDataProvider(data: data as CFData) else { return nil }
+        let info = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipFirst.rawValue)
+            .union(.byteOrder32Little)
+        return CGImage(width: t.width, height: t.height, bitsPerComponent: 8, bitsPerPixel: 32,
+                       bytesPerRow: t.bytesPerRow, space: CGColorSpaceCreateDeviceRGB(),
+                       bitmapInfo: info, provider: provider, decode: nil,
+                       shouldInterpolate: false, intent: .defaultIntent)
+    }
+
+    private func makeUniformsForExport(width: Int, height: Int, camera: ExportCamera,
+                                       raySteps: Int, pass: Int) -> BHUniforms {
+        let h = halton(index: pass + 1)
+        var u = BHUniforms()
+        u.resolution         = simd_float2(Float(width), Float(height))
+        u.time               = camera.time
+        u.mass               = params.mass
+        u.spin               = params.spin
+        u.diskDensity        = params.diskDensity
+        u.diskTemp           = params.diskTemp
+        u.zoom               = camera.zoom
+        u.mouse              = simd_float2(camera.yaw, camera.pitch)
+        u.lensingStrength    = params.lensingStrength
+        u.diskSize           = params.diskSize
+        u.maxRaySteps        = Int32(raySteps)
+        u.enableDoppler      = params.enableDoppler ? 1 : 0
+        u.enableJets         = params.enableJets ? 1 : 0
+        u.enableLensing      = params.enableLensing ? 1 : 0
+        u.enableDisk         = params.enableDisk ? 1 : 0
+        u.enableStars        = params.enableStars ? 1 : 0
+        u.enablePhotonGlow   = params.enablePhotonGlow ? 1 : 0
+        u.enableRedshiftView = params.showRedshift ? 1 : 0
+        u.jitter             = pass == 0 ? .zero : simd_float2(h.x - 0.5, h.y - 0.5)
+        u.diskScaleHeight    = params.diskScaleHeight
+        u.bloomThreshold     = params.bloomThreshold
+        u.bloomIntensity     = params.bloomIntensity
+        u.taaFeedback        = 0
+        u.frameDragStrength  = params.frameDragStrength
+        u.frameIndex         = Int32(pass)
+        return u
+    }
+}

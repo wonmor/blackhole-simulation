@@ -21,6 +21,8 @@ struct ControlPanel: View {
     var liveWallpaperActive: Bool = false
     /// Tapped on the header info button.
     var onAboutTap: () -> Void = {}
+    /// Opens the lesson index.
+    var onLessonsTap: () -> Void = {}
 
     // Section expand/collapse state
     @State private var openGeometry = true
@@ -65,7 +67,15 @@ struct ControlPanel: View {
             qualityPicker
 
             section(title: "Scenarios", isOpen: $openScenarios) {
-                ForEach(Scenario.allCases) { sc in
+                ForEach(Scenario.free) { sc in
+                    scenarioCard(sc)
+                }
+                Text(subscription.isProUnlocked ? "PRO SCENARIOS" : "PRO SCENARIOS (UNLOCK WITH PRO)")
+                    .font(.system(size: 8, weight: .semibold, design: .rounded))
+                    .tracking(1.2)
+                    .foregroundColor(.white.opacity(0.45))
+                    .padding(.top, 2)
+                ForEach(Scenario.pro) { sc in
                     scenarioCard(sc)
                 }
             }
@@ -95,6 +105,13 @@ struct ControlPanel: View {
             }
 
             section(title: "Tools", isOpen: $openTools) {
+                toolButton(
+                    label: "Lessons",
+                    sub: subscription.isProUnlocked ? "8 guided physics tours" : "2 free, 6 more with Pro",
+                    icon: "graduationcap",
+                    locked: false
+                ) { onLessonsTap() }
+
                 if let onLiveWallpaperToggle = onLiveWallpaperToggle {
                     toolButton(
                         label: liveWallpaperActive ? "Stop Live Wallpaper" : "Set as Live Wallpaper",
@@ -115,14 +132,14 @@ struct ControlPanel: View {
                     if subscription.isProUnlocked {
                         onPomodoroTap()
                     } else {
-                        subscription.requestPaywall = true
+                        subscription.showPaywall("The focus timer")
                     }
                 }
 
                 if let onWallpaperSaveTap = onWallpaperSaveTap {
                     toolButton(
-                        label: "Save as Wallpaper",
-                        sub: "Export current frame to Photos",
+                        label: "Save and Export",
+                        sub: subscription.isProUnlocked ? "Screen frame, 4K poster, orbit video" : "Screen frame free; 4K and video with Pro",
                         icon: "square.and.arrow.down",
                         locked: false
                     ) { onWallpaperSaveTap() }
@@ -147,7 +164,7 @@ struct ControlPanel: View {
 
     private var header: some View {
         HStack(alignment: .center) {
-            Image(systemName: "circle.dotted.circle.fill")
+            Image(systemName: "hurricane")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(cyan)
             Text("KERR PARAMETERS")
@@ -176,8 +193,8 @@ struct ControlPanel: View {
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(.white.opacity(0.65))
                 .padding(6)
-                .background(Circle().fill(Color.white.opacity(0.06)))
-                .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.6))
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.white.opacity(0.06)))
+                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Color.white.opacity(0.12), lineWidth: 0.6))
         }
         .buttonStyle(.plain)
     }
@@ -188,11 +205,22 @@ struct ControlPanel: View {
         HStack(spacing: 4) {
             ForEach(QualityPreset.allCases) { p in
                 Button {
-                    params.preset = p
+                    if p.isPro && !subscription.isProUnlocked {
+                        subscription.showPaywall("Cinematic ray tracing")
+                    } else {
+                        params.preset = p
+                    }
                 } label: {
-                    Text(p.displayName.uppercased())
+                    HStack(spacing: 2) {
+                        Text(p.shortName.uppercased())
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                        if p.isPro && !subscription.isProUnlocked {
+                            Image(systemName: "lock").font(.system(size: 7, weight: .bold))
+                        }
+                    }
                         .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .tracking(1.0)
+                        .tracking(0.5)
                         .foregroundColor(params.preset == p ? .black : .white.opacity(0.75))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
@@ -324,22 +352,14 @@ struct ControlPanel: View {
                         Text(label)
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(.white.opacity(0.95))
-                        if locked {
-                            Text("PRO")
-                                .font(.system(size: 8, weight: .semibold, design: .rounded))
-                                .tracking(0.8)
-                                .foregroundColor(.black)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1.5)
-                                .background(Capsule(style: .continuous).fill(cyan))
-                        }
+                        if locked { ProBadge() }
                     }
                     Text(sub)
                         .font(.system(size: 10))
                         .foregroundColor(.white.opacity(0.55))
                 }
                 Spacer()
-                Image(systemName: locked ? "lock.fill" : "chevron.right")
+                Image(systemName: locked ? "lock" : "chevron.right")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.white.opacity(0.45))
             }
@@ -358,14 +378,19 @@ struct ControlPanel: View {
     }
 
     private var pomodoroSubtitle: String {
-        if pomodoro.phase == .idle { return "Focus timer · 25 min default" }
-        return "\(pomodoro.phase.label) · \(pomodoro.formattedTime)"
+        if pomodoro.phase == .idle { return "Focus timer | 25 min default" }
+        return "\(pomodoro.phase.label) | \(pomodoro.formattedTime)"
     }
 
     @ViewBuilder
     private func scenarioCard(_ sc: Scenario) -> some View {
-        Button {
-            sc.apply(to: params)
+        let locked = sc.isPro && !subscription.isProUnlocked
+        return Button {
+            if locked {
+                subscription.showPaywall("The \(sc.displayName) scenario")
+            } else {
+                sc.apply(to: params)
+            }
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: sc.symbol)
@@ -373,15 +398,18 @@ struct ControlPanel: View {
                     .foregroundColor(cyan.opacity(0.85))
                     .frame(width: 22)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(sc.displayName)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.white.opacity(0.95))
+                    HStack(spacing: 6) {
+                        Text(sc.displayName)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.white.opacity(0.95))
+                        if locked { ProBadge() }
+                    }
                     Text(sc.subtitle)
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundColor(.white.opacity(0.55))
                 }
                 Spacer()
-                Image(systemName: "arrow.right.circle")
+                Image(systemName: locked ? "lock" : "arrow.right")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.white.opacity(0.45))
             }
@@ -466,9 +494,11 @@ private struct TogglePill: View {
             withAnimation(.easeOut(duration: 0.12)) { isOn.toggle() }
         } label: {
             HStack(spacing: 5) {
-                Circle()
-                    .fill(isOn ? accent : Color.white.opacity(0.18))
-                    .frame(width: 6, height: 6)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(accent)
+                    .opacity(isOn ? 1 : 0)
+                    .frame(width: 9)
                 Text(label)
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundColor(isOn ? .white : .white.opacity(0.55))

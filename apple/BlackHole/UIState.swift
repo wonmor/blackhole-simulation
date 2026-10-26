@@ -14,6 +14,12 @@ final class UIState: ObservableObject {
     @Published var showWelcome: Bool = false
     /// Expands the equation list inside the HUD.
     @Published var showEquations: Bool = false
+    /// Lesson index sheet.
+    @Published var showLessons: Bool = false
+    /// Lesson whose card is shown over the simulation (nil = none).
+    @Published var activeLesson: Lesson? = nil
+    /// Pro export sheet (4K poster, orbit video). iOS only.
+    @Published var showExport: Bool = false
 
     private static let welcomeSeenKey = "bh.hasSeenWelcome"
 

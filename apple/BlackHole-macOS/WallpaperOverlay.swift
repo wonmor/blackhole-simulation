@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// SwiftUI overlay shown on each wallpaper screen.
-/// While preview is running: tiny "Trial · 1:30 left" pill, top-right.
+/// While preview is running: tiny "Trial | 1:30 left" pill, top-right.
 /// When preview expires: large center CTA.
 struct WallpaperOverlay: View {
     @ObservedObject var subscription: SubscriptionManager
@@ -39,7 +39,7 @@ struct WallpaperOverlay: View {
             Circle()
                 .fill(cyan)
                 .frame(width: 6, height: 6)
-            Text("Trial · \(formatTime(subscription.previewSecondsRemaining)) left")
+            Text("Trial | \(formatTime(subscription.previewSecondsRemaining)) left")
                 .font(.system(size: 11, weight: .medium, design: .rounded).monospacedDigit())
                 .foregroundColor(.white.opacity(0.85))
         }

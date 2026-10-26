@@ -222,7 +222,7 @@ private struct MathPanel: View {
             sectionHeader("Accretion disk")
             equation(
                 title: "Keplerian ω",
-                formula: eq("Ω = sgn(a*)·√M / (r^(3/2) + a √M)"),
+                formula: eq("Ω = sgn(a*) √M / (r^(3/2) + a √M)"),
                 cite: "Page & Thorne 1974"
             )
             equation(
@@ -232,12 +232,12 @@ private struct MathPanel: View {
             )
             equation(
                 title: "Novikov–Thorne T(r)",
-                formula: eq("T ∝ T₀ (r_{ISCO}/r)^(3/4) (1 − √(r_{ISCO}/r))^(1/4) · δ"),
+                formula: eq("T ∝ T₀ (r_{ISCO}/r)^(3/4) (1 − √(r_{ISCO}/r))^(1/4) × δ"),
                 cite: "Novikov & Thorne 1973"
             )
             equation(
                 title: "Relativistic beaming",
-                formula: eq("I_obs = I_em · δ^(7/2)"),
+                formula: eq("I_obs = I_em × δ^(7/2)"),
                 cite: "Liouville's theorem"
             )
 
@@ -344,10 +344,11 @@ private struct StatusDot: View {
     let color: Color
     @State private var pulse: Bool = false
     var body: some View {
-        Circle()
-            .fill(color)
-            .frame(width: 7, height: 7)
-            .shadow(color: color.opacity(0.7), radius: pulse ? 4 : 2)
+        // Line glyph, not a filled dot (design rule: no geometric decor).
+        Image(systemName: "waveform.path.ecg")
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundColor(color)
+            .opacity(pulse ? 1.0 : 0.6)
             .onAppear {
                 withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
                     pulse = true

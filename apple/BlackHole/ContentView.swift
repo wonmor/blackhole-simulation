@@ -92,6 +92,10 @@ struct ContentView: View {
 
                     Spacer(minLength: 0)
 
+                    bottomBar
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+
                     FooterView()
                         .padding(.bottom, 14)
                         .padding(.horizontal, 16)
@@ -118,6 +122,18 @@ struct ContentView: View {
         }
         .sheet(isPresented: $subscription.requestPaywall) {
             PaywallSheet(subscription: subscription)
+        }
+        .sheet(isPresented: $ui.showLessons) {
+            LessonsSheet(params: params, subscription: subscription, ui: ui)
+        }
+        #if os(iOS)
+        .sheet(isPresented: $ui.showExport) {
+            ExportSheet(subscription: subscription, onSaveFrame: { saveScreenFrame() })
+        }
+        #endif
+        .onChange(of: subscription.isProUnlocked) { _, unlocked in
+            // Pro lapsed (refund / expiry): fall back to the best free preset.
+            if !unlocked && params.preset.isPro { params.preset = .ultra }
         }
         .sheet(isPresented: $ui.showAbout) {
             AboutSheet()
@@ -164,17 +180,15 @@ struct ContentView: View {
                         if subscription.isProUnlocked || liveWallpaperActive {
                             toggle()
                         } else {
-                            subscription.requestPaywall = true
+                            subscription.showPaywall("Live wallpaper")
                         }
                     }
                 }
                 #endif
 
                 #if os(iOS)
-                if let save = wallpaperSaveAction {
-                    homeIconButton(symbol: "square.and.arrow.down", help: "Save as Wallpaper") {
-                        save()
-                    }
+                homeIconButton(symbol: "square.and.arrow.down", help: "Save and Export") {
+                    ui.showExport = true
                 }
                 #endif
 
@@ -182,7 +196,7 @@ struct ContentView: View {
                     if subscription.isProUnlocked {
                         ui.showPomodoro = true
                     } else {
-                        subscription.requestPaywall = true
+                        subscription.showPaywall("The focus timer")
                     }
                 }
 
@@ -242,7 +256,8 @@ struct ContentView: View {
             onWallpaperSaveTap: wallpaperSaveAction,
             onLiveWallpaperToggle: liveWallpaperToggleAction,
             liveWallpaperActive: liveWallpaperActive,
-            onAboutTap: { ui.showAbout = true }
+            onAboutTap: { ui.showAbout = true },
+            onLessonsTap: { openLessons() }
         )
     }
 
@@ -256,24 +271,86 @@ struct ContentView: View {
 
     // MARK: - Helpers
 
-    private var wallpaperSaveAction: (() -> Void)? {
-        #if os(iOS)
-        return {
-            Task {
-                await WallpaperSaver.shared.capture()
-                switch WallpaperSaver.shared.status {
-                case .saved:
-                    wallpaperToast = "Saved to Photos. Open Photos → tap → Share → Use as Wallpaper."
-                case .denied:
-                    wallpaperToast = "Photos access denied. Enable it in Settings → BlackHole."
-                case .failed(let m):
-                    wallpaperToast = "Couldn't save: \(m)"
-                default:
-                    break
+    /// Bottom row: the active lesson card, or the Lessons / Pro entry points.
+    @ViewBuilder
+    private var bottomBar: some View {
+        if let lesson = ui.activeLesson {
+            LessonCard(lesson: lesson, params: params, subscription: subscription, ui: ui)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+        } else {
+            HStack(spacing: 10) {
+                pillButton(symbol: "graduationcap", title: "Lessons", accent: false) { openLessons() }
+                if !subscription.isProUnlocked {
+                    pillButton(symbol: "sparkles", title: proPillTitle, accent: true) {
+                        subscription.showPaywall()
+                    }
                 }
-                WallpaperSaver.shared.reset()
             }
         }
+    }
+
+    private var proPillTitle: String {
+        if let y = subscription.product(SubscriptionManager.yearlyID),
+           subscription.introEligible.contains(y.id) {
+            return "Try Pro free"
+        }
+        return "Get Pro"
+    }
+
+    private func openLessons() {
+        // On iPhone the controls live in a sheet; close it first.
+        if usesSheetForControls { ui.showControls = false }
+        DispatchQueue.main.asyncAfter(deadline: .now() + (usesSheetForControls ? 0.35 : 0)) {
+            ui.showLessons = true
+        }
+    }
+
+    private func pillButton(symbol: String, title: String, accent: Bool,
+                            action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: symbol).font(.system(size: 12, weight: .semibold))
+                Text(title).font(.system(size: 12, weight: .semibold, design: .rounded))
+            }
+            .foregroundColor(accent ? .black : .white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(accent ? Color(red: 0.55, green: 0.95, blue: 1.0) : Color.black.opacity(0.55))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.white.opacity(accent ? 0 : 0.12), lineWidth: 0.7)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+    }
+
+    /// Free: saves the current screen frame to Photos.
+    private func saveScreenFrame() {
+        #if os(iOS)
+        Task {
+            await WallpaperSaver.shared.capture()
+            switch WallpaperSaver.shared.status {
+            case .saved:
+                wallpaperToast = "Saved to Photos. To use it as a wallpaper, open it in Photos, tap Share, then Use as Wallpaper."
+            case .denied:
+                wallpaperToast = "Photos access is off. Enable it in Settings, BlackHole, Photos."
+            case .failed(let m):
+                wallpaperToast = "Couldn't save: \(m)"
+            default:
+                break
+            }
+            WallpaperSaver.shared.reset()
+        }
+        #endif
+    }
+
+    private var wallpaperSaveAction: (() -> Void)? {
+        #if os(iOS)
+        return { ui.showControls = false; DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { ui.showExport = true } }
         #else
         return nil
         #endif

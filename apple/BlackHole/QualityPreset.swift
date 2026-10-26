@@ -7,6 +7,9 @@ import UIKit
 /// Step counts match `SIMULATION_CONFIG.rayTracingSteps` from the web build.
 enum QualityPreset: String, CaseIterable, Identifiable {
     case low, medium, high, ultra
+    /// Pro: the shader's maximum ray budget (500 geodesic steps, ~2x Ultra)
+    /// with TAA + bloom. Sharper photon ring and higher-order lensed images.
+    case cinematic
 
     /// Best default for the current device. Errs on the conservative side —
     /// users can always crank up via the Quality picker.
@@ -46,8 +49,21 @@ enum QualityPreset: String, CaseIterable, Identifiable {
         case .medium: return "Medium"
         case .high:   return "High"
         case .ultra:  return "Ultra"
+        case .cinematic: return "Cinematic"
         }
     }
+
+    /// Short label for the compact segmented picker.
+    var shortName: String {
+        switch self {
+        case .medium: return "Med"
+        case .cinematic: return "Cine"
+        default: return displayName
+        }
+    }
+
+    /// Cinematic is the only Pro preset; Low to Ultra stay free.
+    var isPro: Bool { self == .cinematic }
 
     /// Mirrors the web `rayTracingSteps` table: 32 / 64 / 128 / 256.
     var maxRaySteps: Int {
@@ -56,6 +72,7 @@ enum QualityPreset: String, CaseIterable, Identifiable {
         case .medium: return 64
         case .high:   return 128
         case .ultra:  return 256
+        case .cinematic: return 500   // shader clamps to 500
         }
     }
 
@@ -65,6 +82,7 @@ enum QualityPreset: String, CaseIterable, Identifiable {
         case .medium: return 0.75
         case .high:   return 1.0
         case .ultra:  return 1.0
+        case .cinematic: return 1.0
         }
     }
 
@@ -74,6 +92,7 @@ enum QualityPreset: String, CaseIterable, Identifiable {
         case .medium: return true
         case .high:   return true
         case .ultra:  return true
+        case .cinematic: return true
         }
     }
 
@@ -83,6 +102,7 @@ enum QualityPreset: String, CaseIterable, Identifiable {
         case .medium: return false
         case .high:   return true
         case .ultra:  return true
+        case .cinematic: return true
         }
     }
 }

@@ -54,8 +54,8 @@ struct AboutSheet: View {
             divider
 
             row(label: "VERSION", value: versionString)
-            row(label: "RENDERER", value: "Metal 3 · MSL fragment shader")
-            row(label: "PHYSICS", value: "Kerr-Schild geodesic · Page-Thorne disk")
+            row(label: "RENDERER", value: "Metal 3 | MSL fragment shader")
+            row(label: "PHYSICS", value: "Kerr-Schild geodesic | Page-Thorne disk")
 
             divider
 

@@ -69,7 +69,7 @@ struct MenuBarContent: View {
 
         #if DEBUG
         Divider()
-        Button(subscription.isProUnlocked ? "DEV · Lock Pro" : "DEV · Unlock Pro") {
+        Button(subscription.isProUnlocked ? "DEV: Lock Pro" : "DEV: Unlock Pro") {
             subscription.toggleDevOverride()
         }
         #endif
@@ -101,6 +101,6 @@ struct MenuBarContent: View {
 
     private var pomodoroLabel: String {
         if pomodoro.phase == .idle { return subscription.isProUnlocked ? "Pomodoro Timer…" : "Pomodoro Timer (Pro)…" }
-        return "Pomodoro · \(pomodoro.formattedTime) (\(pomodoro.phase.label))"
+        return "Pomodoro | \(pomodoro.formattedTime) (\(pomodoro.phase.label))"
     }
 }
