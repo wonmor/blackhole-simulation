@@ -17,7 +17,11 @@ enum class QualityPreset(
     LOW("Low", 32, 0.5f, false, false),
     MEDIUM("Medium", 64, 0.75f, true, false),
     HIGH("High", 128, 1.0f, true, true),
-    ULTRA("Ultra", 256, 1.0f, true, true);
+    ULTRA("Ultra", 256, 1.0f, true, true),
+    /** Pro: the shader's maximum ray budget (500 steps, ~2x Ultra). */
+    CINEMATIC("Cine", 500, 1.0f, true, true);
+
+    val isPro: Boolean get() = this == CINEMATIC
 
     companion object {
         /** Conservative per-device default; user can crank it up in Controls. */

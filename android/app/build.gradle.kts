@@ -33,13 +33,13 @@ val keystoreProps = Properties().apply {
 
 android {
     namespace = "com.orchestrsim.blackhole"
-    compileSdk = 35
+    compileSdk = 36
     ndkVersion = "27.2.12479018"
 
     defaultConfig {
         applicationId = "com.johnseong.blackhole"   // Google Play package id
         minSdk = 26                                       // Vulkan 1.1, rgba16f, AGSL-class GPUs
-        targetSdk = 35
+        targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
 
@@ -136,6 +136,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("com.android.billingclient:billing:8.3.0")
 
     val composeBom = platform("androidx.compose:compose-bom:2024.10.01")
     implementation(composeBom)

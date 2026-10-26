@@ -91,6 +91,13 @@ class SimState(context: Context) {
         pushCamera()
     }
 
+    fun applyLesson(l: Lesson) {
+        l.apply(this)
+        prefs.edit().putString("preset", preset.name).apply()
+        pushParams()
+        pushCamera()
+    }
+
     fun selectPreset(p: QualityPreset) {
         preset = p
         prefs.edit().putString("preset", p.name).apply()
