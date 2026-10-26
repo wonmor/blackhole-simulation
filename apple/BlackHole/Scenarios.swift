@@ -37,7 +37,7 @@ enum Scenario: String, CaseIterable, Identifiable {
         case .maximalSpin:   return "Maximal Spin"
         case .schwarzschild: return "Schwarzschild"
         case .m87:           return "M87* (EHT view)"
-        case .gargantua:     return "Interstellar look"
+        case .gargantua:     return "Film look"
         case .retrograde:    return "Retrograde disk"
         case .cygnusX1:      return "Cygnus X-1"
         case .quasar:        return "Quasar"

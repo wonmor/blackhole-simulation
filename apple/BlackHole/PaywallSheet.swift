@@ -92,7 +92,7 @@ struct PaywallSheet: View {
                     text: "Render a smooth 12-second 360° fly-around as a 1080p video.")
             #endif
             Feature(icon: "sparkles", title: "Six more scenarios",
-                    text: "M87*, an Interstellar-style disk, retrograde spin, Cygnus X-1, a quasar and a bare shadow.")
+                    text: "M87*, a film-style thin disk, retrograde spin, Cygnus X-1, a quasar and a bare shadow.")
             Feature(icon: "graduationcap", title: "All eight lessons",
                     text: "Guided tours of Doppler beaming, redshift, frame dragging, the ISCO, disk colour and jets.")
             #if os(macOS)
