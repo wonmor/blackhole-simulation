@@ -152,7 +152,16 @@ class ProManager(context: Context) : PurchasesUpdatedListener {
         return true
     }
 
+    /** Debug-build override (see MainActivity.applyDebugProOverride). */
+    private var debugOverride: Boolean? = null
+
+    fun setDebugOverride(v: Boolean) {
+        debugOverride = v
+        isPro = v
+    }
+
     private fun updatePro(v: Boolean) {
+        debugOverride?.let { isPro = it; return }
         isPro = v
         prefs.edit().putBoolean(PREF_KEY, v).apply()
         if (v) showPaywall = false

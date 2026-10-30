@@ -66,7 +66,7 @@ fun Paywall(pro: ProManager, onClose: () -> Unit) {
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "The simulator, every slider, Low to Ultra quality, four scenarios, two lessons and snapshots stay free. Pro adds the studio tools.",
+                        "The live simulator, two lessons and snapshots are free. Pro unlocks every setting and the studio tools.",
                         color = Color.White.copy(alpha = 0.62f), fontSize = 12.sp
                     )
                 }
@@ -75,6 +75,8 @@ fun Paywall(pro: ProManager, onClose: () -> Unit) {
                 }
             }
 
+            feature(Icons.Outlined.Tune, "Every setting",
+                "Mass, spin, lensing, the accretion disk, bloom, camera, effects and Low to Ultra quality.")
             feature(Icons.Outlined.Camera, "Cinematic ray tracing",
                 "500 geodesic steps per pixel, twice Ultra: a sharper photon ring and more higher-order images.")
             feature(Icons.Outlined.AutoAwesome, "Six more scenarios",

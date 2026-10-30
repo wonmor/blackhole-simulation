@@ -13,6 +13,7 @@ import android.provider.MediaStore
 import android.view.PixelCopy
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -60,14 +61,40 @@ class MainActivity : ComponentActivity() {
     private lateinit var sim: SimState
     private lateinit var pro: ProManager
     var surfaceView: BlackHoleSurfaceView? = null
+    /** Debuggable builds only (`--ez debug_no_render true`): skip the Vulkan view so
+     *  emulators without a usable GPU can still capture the Compose UI. */
+    var skipRenderer = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // Always light bar icons: the canvas is black in both system modes.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        )
         sim = SimState(this)
         pro = ProManager(this)
+        applyDebugProOverride(intent)
         pro.start()
         setContent { BlackHoleTheme { BlackHoleApp(this, sim, pro) } }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        applyDebugProOverride(intent)
+    }
+
+    /**
+     * Debuggable builds only: `adb shell am start -n <pkg>/com.orchestrsim.blackhole.MainActivity
+     * --ez debug_pro true|false` forces the Pro state for testing and screenshots.
+     * Ignored in release builds.
+     */
+    private fun applyDebugProOverride(intent: android.content.Intent?) {
+        val debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        if (debuggable && intent?.getBooleanExtra("debug_no_render", false) == true) skipRenderer = true
+        if (debuggable && intent?.hasExtra("debug_pro") == true) {
+            pro.setDebugOverride(intent.getBooleanExtra("debug_pro", false))
+        }
     }
 
     override fun onPause() {
@@ -140,7 +167,7 @@ private fun BlackHoleApp(activity: MainActivity, sim: SimState, pro: ProManager)
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        AndroidView(
+        if (!activity.skipRenderer) AndroidView(
             factory = { ctx -> BlackHoleSurfaceView(ctx, sim).also { activity.surfaceView = it } },
             modifier = Modifier.fillMaxSize()
         )
@@ -225,8 +252,8 @@ private fun BlackHoleApp(activity: MainActivity, sim: SimState, pro: ProManager)
                     .fillMaxWidth()
                     .fillMaxHeight(0.6f)
                     .clip(Rcs(topStart = 20.dp, topEnd = 20.dp))
-                    .background(Color(0xFF0B0D11).copy(alpha = 0.96f))
-                    .safeDrawingPadding()
+                    .background(Color(0xFF0B0D11))
+                    .navigationBarsPadding()
             ) {
                 ControlPanel(sim, pro,
                     onLessons = { showControls = false; showLessons = true },
