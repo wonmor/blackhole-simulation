@@ -271,6 +271,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 32073A9A37C557625EE1D5D4 /* Build configuration list for PBXNativeTarget "BlackHole-iOS" */;
 			buildPhases = (
+				8F7A3DF18BAAA053178D2297 /* Build gravitas-ffi (Rust) */,
 				6FA425935901C3B03CC1373C /* Sources */,
 				69DB82D1EAAF6BED64F7789C /* Resources */,
 			);
@@ -368,6 +369,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		8F7A3DF18BAAA053178D2297 /* Build gravitas-ffi (Rust) */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build gravitas-ffi (Rust)";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"$PLATFORM_NAME\" = \"iphoneos\" ]; then\n  export PATH=\"$HOME/.cargo/bin:$PATH\"\n  cd \"$SRCROOT/../physics-engine\"\n  env -u SDKROOT -u IPHONEOS_DEPLOYMENT_TARGET -u MACOSX_DEPLOYMENT_TARGET \\\n    CARGO_PROFILE_RELEASE_BUILD_OVERRIDE_STRIP=none \\\n    cargo build --release -p gravitas-ffi --target aarch64-apple-ios\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		6FA425935901C3B03CC1373C /* Sources */ = {
@@ -468,6 +491,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 6;
 				GENERATE_INFOPLIST_FILE = NO;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/../physics-engine/gravitas-ffi/include";
 				INFOPLIST_FILE = "BlackHole-iOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -475,9 +499,11 @@
 				);
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = "$(inherited) -L$(SRCROOT)/../physics-engine/target/aarch64-apple-ios/release -lgravitas_ffi";
 				PRODUCT_BUNDLE_IDENTIFIER = com.orchestrsim.blackholesim;
 				PRODUCT_NAME = BlackHole;
 				SDKROOT = iphoneos;
+				"SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]" = "$(inherited) GRAVITAS_LINKED";
 				SWIFT_OBJC_BRIDGING_HEADER = "BlackHole/Shared/BlackHole-Bridging-Header.h";
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -533,6 +559,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 6;
 				GENERATE_INFOPLIST_FILE = NO;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/../physics-engine/gravitas-ffi/include";
 				INFOPLIST_FILE = "BlackHole-iOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -540,9 +567,11 @@
 				);
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = "$(inherited) -L$(SRCROOT)/../physics-engine/target/aarch64-apple-ios/release -lgravitas_ffi";
 				PRODUCT_BUNDLE_IDENTIFIER = com.orchestrsim.blackholesim;
 				PRODUCT_NAME = BlackHole;
 				SDKROOT = iphoneos;
+				"SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]" = "$(inherited) GRAVITAS_LINKED";
 				SWIFT_OBJC_BRIDGING_HEADER = "BlackHole/Shared/BlackHole-Bridging-Header.h";
 				TARGETED_DEVICE_FAMILY = 1;
 			};

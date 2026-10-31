@@ -23,6 +23,17 @@ targets:
   BlackHole-iOS:
     type: application
     platform: iOS
+    preBuildScripts:
+      - name: Build gravitas-ffi (Rust)
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ "$PLATFORM_NAME" = "iphoneos" ]; then
+            export PATH="$HOME/.cargo/bin:$PATH"
+            cd "$SRCROOT/../physics-engine"
+            env -u SDKROOT -u IPHONEOS_DEPLOYMENT_TARGET -u MACOSX_DEPLOYMENT_TARGET \
+              CARGO_PROFILE_RELEASE_BUILD_OVERRIDE_STRIP=none \
+              cargo build --release -p gravitas-ffi --target aarch64-apple-ios
+          fi
     sources:
       - path: BlackHole
       - path: BlackHole-iOS
@@ -53,6 +64,13 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.orchestrsim.blackholesim
         CURRENT_PROJECT_VERSION: "6"
+        # Device builds link the Rust Kerr engine (physics-engine/gravitas-ffi,
+        # built by the pre-build script below); the HUD's horizon, photon
+        # sphere and ISCO readouts then come from Rust. Simulator builds keep
+        # the identical Swift closed forms.
+        HEADER_SEARCH_PATHS: "$(SRCROOT)/../physics-engine/gravitas-ffi/include"
+        "OTHER_LDFLAGS[sdk=iphoneos*]": "$(inherited) -L$(SRCROOT)/../physics-engine/target/aarch64-apple-ios/release -lgravitas_ffi"
+        "SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]": "$(inherited) GRAVITAS_LINKED"
         # User-facing product name. Target name is suffixed -iOS for build
         # disambiguation, but the .app, executable, and CFBundleName must
         # be plain "BlackHole" — Apple rejects names containing "iOS" /

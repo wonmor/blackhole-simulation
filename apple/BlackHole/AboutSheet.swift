@@ -56,6 +56,7 @@ struct AboutSheet: View {
             row(label: "VERSION", value: versionString)
             row(label: "RENDERER", value: "Metal 3 | MSL fragment shader")
             row(label: "PHYSICS", value: "Kerr-Schild geodesic | Page-Thorne disk")
+            row(label: "KERR ENGINE", value: Gravitas.engineDescription)
 
             divider
 
@@ -64,7 +65,7 @@ struct AboutSheet: View {
                 Text("Developed by John Seong at Orch Aerospace, Inc.")
                     .font(.system(size: 12))
                     .foregroundColor(.white.opacity(0.85))
-                Text("Fork of project by Mayank Pratap Singh (MIT License)")
+                Text("Based in part on open-source work by Mayank Pratap Singh (MIT License)")
                     .font(.system(size: 11))
                     .foregroundColor(.white.opacity(0.55))
             }

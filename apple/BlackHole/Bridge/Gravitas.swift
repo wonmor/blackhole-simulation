@@ -13,6 +13,16 @@ import Foundation
 /// and switch to the validated Rust kernel once the xcframework is linked.
 enum Gravitas {
 
+    /// Which backend computes the HUD's Kerr observables, for the About sheet.
+    static var engineDescription: String {
+        #if GRAVITAS_LINKED
+        if let c = gravitas_version() { return "gravitas \(String(cString: c)) (Rust)" }
+        return "gravitas (Rust)"
+        #else
+        return "Swift closed forms"
+        #endif
+    }
+
     /// Outer event horizon r_+ = M + sqrt(M² - a²).
     static func eventHorizon(mass: Double, spin: Double) -> Double {
         #if GRAVITAS_LINKED
