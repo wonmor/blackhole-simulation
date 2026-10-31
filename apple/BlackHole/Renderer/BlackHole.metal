@@ -261,7 +261,7 @@ inline float3 sample_disk(thread float3 &p, float3 p_prev, thread float3 &v,
     float signSpin = (u.spin >= 0.0) ? 1.0 : -1.0;
     float OmegaPhase = (signSpin * sqrt_M) /
                        (sampleR * sqrt(sampleR) + a * sqrt_M);
-    float rotAngle = OmegaPhase * u.time * DISK_TIME_SCALE * 10.0;
+    float rotAngle = OmegaPhase * u.diskTime * DISK_TIME_SCALE * 10.0;
     float2x2 rotPhase = rot(rotAngle);
     float3 noiseP = sampleP;
     {

@@ -204,6 +204,7 @@ final class ImmersiveRenderer {
         var u = BHUniforms()
         u.resolution = simd_float2(2048, 2048)
         u.time = Float(CFAbsoluteTimeGetCurrent() - startTime)
+        u.diskTime = u.time * max(0, p.diskSpeed)
         u.mass = p.mass
         u.spin = p.spin
         u.diskDensity = p.diskDensity

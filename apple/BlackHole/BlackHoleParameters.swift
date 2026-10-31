@@ -19,6 +19,8 @@ final class BlackHoleParameters: ObservableObject {
     @Published var diskTemp: Float = 9500.0                { didSet { persist("diskTemp", diskTemp) } }
     @Published var diskSize: Float = 50.0                  { didSet { persist("diskSize", diskSize) } }
     @Published var diskScaleHeight: Float = 0.2            { didSet { persist("diskScale", diskScaleHeight) } }
+    /// Disk rotation speed multiplier: 0 freezes the disk, 1 is the default.
+    @Published var diskSpeed: Float = 1.0                  { didSet { persist("diskSpeed", diskSpeed) } }
 
     // MARK: - Camera (intentionally NOT persisted — yaw drifts every frame
     // via auto-spin, persisting it would write to UserDefaults 60×/sec and
@@ -62,6 +64,12 @@ final class BlackHoleParameters: ObservableObject {
         load()
     }
 
+    /// Free users can't land on a Pro preset (Ultra, Cinematic) through a
+    /// scenario or lesson; they get High instead.
+    func clampPreset(proUnlocked: Bool) {
+        if !proUnlocked && preset.isPro { preset = .high }
+    }
+
     /// Factory settings (the `high` web preset). Camera pose included.
     func resetToDefaults() {
         mass = 1.0
@@ -72,6 +80,7 @@ final class BlackHoleParameters: ObservableObject {
         diskTemp = 9500.0
         diskSize = 50.0
         diskScaleHeight = 0.2
+        diskSpeed = 1.0
         zoom = 100.0
         yaw = 0.5
         pitch = 0.539
@@ -107,6 +116,7 @@ final class BlackHoleParameters: ObservableObject {
         if let v = d.object(forKey: Self.prefix + "diskTemp")    as? Float { diskTemp = v }
         if let v = d.object(forKey: Self.prefix + "diskSize")    as? Float { diskSize = v }
         if let v = d.object(forKey: Self.prefix + "diskScale")   as? Float { diskScaleHeight = v }
+        if let v = d.object(forKey: Self.prefix + "diskSpeed")   as? Float { diskSpeed = v }
         // Camera pose intentionally NOT loaded — see "Camera" section above.
         if let v = d.object(forKey: Self.prefix + "autoSpin")    as? Float { autoSpin = v }
         if let raw = d.string(forKey: Self.prefix + "preset"),

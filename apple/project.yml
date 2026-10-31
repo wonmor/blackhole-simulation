@@ -42,7 +42,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         CFBundleDisplayName: BlackHole
         CFBundleShortVersionString: "1.0.0"
-        CFBundleVersion: "5"
+        CFBundleVersion: "6"
         ITSAppUsesNonExemptEncryption: false
         NSPhotoLibraryAddUsageDescription: "BlackHole needs permission to save the current black-hole frame to your Photos so you can set it as your iPhone wallpaper. The app does not read or scan your existing photos."
     scheme:
@@ -52,13 +52,13 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.orchestrsim.blackholesim
-        CURRENT_PROJECT_VERSION: "5"
+        CURRENT_PROJECT_VERSION: "6"
         # User-facing product name. Target name is suffixed -iOS for build
         # disambiguation, but the .app, executable, and CFBundleName must
         # be plain "BlackHole" — Apple rejects names containing "iOS" /
         # "macOS" under Guideline 5.2.5.
         PRODUCT_NAME: BlackHole
-        TARGETED_DEVICE_FAMILY: "1,2"
+        TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: NO
         MTL_ENABLE_DEBUG_INFO: INCLUDE_SOURCE
         MTL_FAST_MATH: YES

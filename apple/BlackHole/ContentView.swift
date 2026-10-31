@@ -133,7 +133,12 @@ struct ContentView: View {
         #endif
         .onChange(of: subscription.isProUnlocked) { _, unlocked in
             // Pro lapsed (refund / expiry): fall back to the best free preset.
-            if !unlocked && params.preset.isPro { params.preset = .ultra }
+            if !unlocked && params.preset.isPro { params.preset = .high }
+        }
+        .onChange(of: subscription.entitlementsChecked) { _, checked in
+            // First StoreKit answer of the launch: drop a Pro preset left
+            // over from an earlier session if this account isn't Pro.
+            if checked { params.clampPreset(proUnlocked: subscription.isProUnlocked) }
         }
         .sheet(isPresented: $ui.showAbout) {
             AboutSheet()
@@ -336,6 +341,7 @@ struct ContentView: View {
             switch WallpaperSaver.shared.status {
             case .saved:
                 wallpaperToast = "Saved to Photos. To use it as a wallpaper, open it in Photos, tap Share, then Use as Wallpaper."
+                subscription.noteMoment(.snapshot)
             case .denied:
                 wallpaperToast = "Photos access is off. Enable it in Settings, BlackHole, Photos."
             case .failed(let m):
@@ -389,9 +395,12 @@ private struct FooterView: View {
                 .font(.system(size: 9, weight: .semibold, design: .rounded))
                 .tracking(2.0)
                 .foregroundColor(.white.opacity(0.55))
+            #if !os(iOS)
+            // iOS keeps the upstream credit and MIT notice in About.
             Text("Fork of project by Mayank Pratap Singh")
                 .font(.system(size: 9, weight: .regular, design: .rounded))
                 .foregroundColor(.white.opacity(0.30))
+            #endif
         }
         .lineLimit(1)
         .minimumScaleFactor(0.7)

@@ -183,6 +183,7 @@ struct LessonsSheet: View {
                 }
             } else {
                 lesson.apply(to: params)
+                params.clampPreset(proUnlocked: subscription.isProUnlocked)
                 ui.activeLesson = lesson
                 dismiss()
             }
@@ -290,7 +291,10 @@ struct LessonCard: View {
                               symbol: locked ? "lock" : "chevron.right",
                               locked: locked) { go(next) }
                 } else {
-                    navButton("Finish", symbol: "checkmark", locked: false) { ui.activeLesson = nil }
+                    navButton("Finish", symbol: "checkmark", locked: false) {
+                        ui.activeLesson = nil
+                        subscription.noteMoment(.lessonDone)
+                    }
                 }
             }
         }
@@ -311,7 +315,9 @@ struct LessonCard: View {
             subscription.requestPaywall = true
             return
         }
+        if l.rawValue > (ui.activeLesson?.rawValue ?? Int.max) { subscription.noteMoment(.lessonDone) }
         l.apply(to: params)
+        params.clampPreset(proUnlocked: subscription.isProUnlocked)
         withAnimation(.easeInOut(duration: 0.2)) { ui.activeLesson = l }
     }
 

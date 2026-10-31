@@ -50,6 +50,10 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     // State
     private let startTime = CFAbsoluteTimeGetCurrent()
+    /// Disk rotation clock: integrates frame time scaled by `params.diskSpeed`,
+    /// so changing the speed never makes the disk jump.
+    private var diskTime: Double = 0
+    private var lastDiskClock: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
     private var lastFrameTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
     private var frameIndex: Int32 = 0
     private var historyValid: Bool = false
@@ -463,7 +467,11 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         var u = BHUniforms()
         u.resolution         = simd_float2(renderW, renderH)
-        u.time               = Float(CFAbsoluteTimeGetCurrent() - startTime)
+        let clock = CFAbsoluteTimeGetCurrent()
+        diskTime += min(max(clock - lastDiskClock, 0), 1.0 / 15.0) * Double(max(0, params.diskSpeed))
+        lastDiskClock = clock
+        u.time               = Float(clock - startTime)
+        u.diskTime           = Float(diskTime)
         u.mass               = params.mass
         u.spin               = params.spin
         u.diskDensity        = params.diskDensity
@@ -708,6 +716,7 @@ extension Renderer {
         var u = BHUniforms()
         u.resolution         = simd_float2(Float(width), Float(height))
         u.time               = camera.time
+        u.diskTime           = camera.time * max(0, params.diskSpeed)
         u.mass               = params.mass
         u.spin               = params.spin
         u.diskDensity        = params.diskDensity

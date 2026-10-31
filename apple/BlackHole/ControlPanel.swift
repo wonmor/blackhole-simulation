@@ -92,6 +92,7 @@ struct ControlPanel: View {
                 slider("Density",      value: $params.diskDensity,     range: 0.0...5.0,  format: "%.2f", unit: "")
                 slider("Temperature",  value: $params.diskTemp,        range: 1000.0...50000.0, format: "%.0f", unit: "K")
                 slider("Scale height", value: $params.diskScaleHeight, range: 0.01...0.30, format: "%.2f", unit: "H/R")
+                slider("Rotation speed", value: $params.diskSpeed,   range: 0.0...4.0,  format: "%.2f", unit: "x")
             }
 
             section(title: "Bloom", isOpen: $openBloom) {
@@ -206,7 +207,7 @@ struct ControlPanel: View {
             ForEach(QualityPreset.allCases) { p in
                 Button {
                     if p.isPro && !subscription.isProUnlocked {
-                        subscription.showPaywall("Cinematic ray tracing")
+                        subscription.showPaywall(p == .cinematic ? "Cinematic ray tracing" : "Ultra quality")
                     } else {
                         params.preset = p
                     }
@@ -390,6 +391,8 @@ struct ControlPanel: View {
                 subscription.showPaywall("The \(sc.displayName) scenario")
             } else {
                 sc.apply(to: params)
+                params.clampPreset(proUnlocked: subscription.isProUnlocked)
+                subscription.noteMoment(.scenario)
             }
         } label: {
             HStack(spacing: 10) {

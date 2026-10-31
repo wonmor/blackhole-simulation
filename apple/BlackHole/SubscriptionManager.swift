@@ -25,11 +25,57 @@ final class SubscriptionManager: ObservableObject {
     @Published var requestPaywall: Bool = false
     /// Which locked feature opened the paywall, shown as its headline.
     @Published var paywallReason: String?
+    /// Overrides the paywall headline (the one-time post-"wow" prompt).
+    @Published var paywallHeadline: String?
+    /// True once StoreKit has answered the first entitlement check of the launch.
+    @Published private(set) var entitlementsChecked: Bool = false
 
     /// Opens the paywall, optionally naming the feature the user tapped.
     func showPaywall(_ reason: String? = nil) {
         paywallReason = reason
+        paywallHeadline = nil
         requestPaywall = true
+    }
+
+    // MARK: - Good moments (wow paywall + rating prompt)
+
+    enum Moment { case scenario, lessonDone, snapshot }
+
+    private let launchedAt = Date()
+
+    /// A good moment just happened. Nothing fires on first touch: the one-time
+    /// paywall waits for three such moments and 45 s with the simulator; the
+    /// App Store rating prompt only follows a finished lesson or a saved
+    /// snapshot, at most every 10 days (StoreKit adds its own limit).
+    func noteMoment(_ m: Moment) {
+        let d = UserDefaults.standard
+        let count = d.integer(forKey: "bh.moments") + 1
+        d.set(count, forKey: "bh.moments")
+        if !isProUnlocked, !d.bool(forKey: "bh.wowShown"), count >= 3,
+           Date().timeIntervalSince(launchedAt) >= 45 {
+            d.set(true, forKey: "bh.wowShown")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                guard let self, !self.isProUnlocked, !self.requestPaywall else { return }
+                self.paywallReason = nil
+                self.paywallHeadline = "Enjoying the view?"
+                self.requestPaywall = true
+            }
+            return
+        }
+        guard m != .scenario else { return }
+        let last = d.double(forKey: "bh.reviewAskedAt")
+        let now = Date().timeIntervalSince1970
+        guard now - last > 10 * 24 * 3600 else { return }
+        d.set(now, forKey: "bh.reviewAskedAt")
+        #if os(iOS)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            if let scene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first(where: { $0.activationState == .foregroundActive }) {
+                AppStore.requestReview(in: scene)
+            }
+        }
+        #endif
     }
 
     /// Hybrid free-trial: 90 seconds of live wallpaper per app launch.
@@ -251,6 +297,7 @@ final class SubscriptionManager: ObservableObject {
         }
         self.activeProductID = active
         self.isProUnlocked = unlocked
+        self.entitlementsChecked = true
     }
 
     private func handle(update: VerificationResult<Transaction>) async {

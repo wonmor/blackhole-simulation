@@ -63,7 +63,8 @@ enum QualityPreset: String, CaseIterable, Identifiable {
     }
 
     /// Cinematic is the only Pro preset; Low to Ultra stay free.
-    var isPro: Bool { self == .cinematic }
+    /// Ultra and Cinematic are BlackHole Pro; Low to High are free.
+    var isPro: Bool { self == .ultra || self == .cinematic }
 
     /// Mirrors the web `rayTracingSteps` table: 32 / 64 / 128 / 256.
     var maxRaySteps: Int {

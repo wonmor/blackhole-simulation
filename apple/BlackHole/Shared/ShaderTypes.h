@@ -47,6 +47,11 @@ typedef struct {
     float    taaFeedback;        // 4B
     float    frameDragStrength;  // 4B
     int      frameIndex;         // 4B    -> 112
+
+    float    diskTime;           // 4B   disk rotation clock (speed-scaled)
+    float    _pad0;
+    float    _pad1;
+    float    _pad2;              //      -> 128
 } BHUniforms;
 
 #endif /* ShaderTypes_h */

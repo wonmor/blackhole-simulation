@@ -3,9 +3,9 @@ import StoreKit
 
 /// BlackHole Pro paywall.
 ///
-/// Lists all three ways to get Pro (monthly, yearly with a free trial when
-/// the account is eligible, and a one-time lifetime unlock) with the App
-/// Store's localized price and billing period on every option, a Restore
+/// Offers a one-time lifetime unlock (the main offer) and a yearly
+/// subscription with a free trial when the account is eligible, with the App
+/// Store's localized price and billing period on each option, a Restore
 /// Purchases button, the auto-renewal terms, and links to the Terms of Use
 /// (Apple's standard EULA) and the Privacy Policy (App Review Guideline
 /// 3.1.2). Plan names, lengths and the legal links are visible even before
@@ -13,7 +13,7 @@ import StoreKit
 struct PaywallSheet: View {
     @ObservedObject var subscription: SubscriptionManager
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedID: String = SubscriptionManager.yearlyID
+    @State private var selectedID: String = SubscriptionManager.lifetimeID
 
     private let cyan = Color(red: 0.55, green: 0.95, blue: 1.0)
 
@@ -46,7 +46,7 @@ struct PaywallSheet: View {
         .onChange(of: subscription.isProUnlocked) { _, unlocked in
             if unlocked { dismiss() }
         }
-        .onDisappear { subscription.paywallReason = nil }
+        .onDisappear { subscription.paywallReason = nil; subscription.paywallHeadline = nil }
         .alert("App Store", isPresented: errorBinding) {
             Button("OK", role: .cancel) { subscription.lastError = nil }
         } message: {
@@ -59,11 +59,11 @@ struct PaywallSheet: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(subscription.paywallReason.map { "\($0) is part of Pro" } ?? "BlackHole Pro")
+                Text(subscription.paywallHeadline ?? subscription.paywallReason.map { "\($0) is part of Pro" } ?? "BlackHole Pro")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("The simulator, every slider, the Low to Ultra quality presets, four scenarios, two lessons and still-frame saving stay free. Pro adds the studio tools.")
+                Text("The simulator, every slider, Low to High quality, four scenarios, two lessons and still-frame saving stay free. Pro adds the rest, once, for good.")
                     .font(.system(size: 12))
                     .foregroundColor(.white.opacity(0.62))
                     .fixedSize(horizontal: false, vertical: true)
@@ -83,8 +83,8 @@ struct PaywallSheet: View {
 
     private var features: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Feature(icon: "camera.aperture", title: "Cinematic ray tracing",
-                    text: "500 geodesic steps per pixel, twice Ultra: a sharper photon ring and more higher-order images.")
+            Feature(icon: "camera.aperture", title: "Ultra and Cinematic ray tracing",
+                    text: "Up to 500 geodesic steps per pixel: a sharper photon ring and more higher-order images.")
             #if os(iOS)
             Feature(icon: "photo", title: "4K poster export",
                     text: "Render a supersampled 4K still with 16-pass anti-aliasing and save it to Photos.")
@@ -102,7 +102,7 @@ struct PaywallSheet: View {
             Feature(icon: "timer", title: "Focus timer",
                     text: "A Pomodoro timer over the simulation.")
             Feature(icon: "arrow.triangle.2.circlepath", title: "Every device",
-                    text: "One purchase unlocks Pro on iPhone, iPad and Mac.")
+                    text: "One purchase unlocks Pro on every device signed in to your Apple Account.")
         }
     }
 
@@ -115,15 +115,15 @@ struct PaywallSheet: View {
                 .tracking(1.4)
                 .foregroundColor(cyan.opacity(0.85))
 
-            planRow(id: SubscriptionManager.yearlyID,
-                    fallbackName: "BlackHole Pro Yearly",
-                    fallbackTerms: "Billed every year, auto-renews")
-            planRow(id: SubscriptionManager.monthlyID,
-                    fallbackName: "BlackHole Pro Monthly",
-                    fallbackTerms: "Billed every month, auto-renews")
+            // Lifetime is the main offer; Yearly (with its trial) is the
+            // alternative. The monthly product stays live in App Store Connect
+            // for anyone already subscribed but is no longer offered here.
             planRow(id: SubscriptionManager.lifetimeID,
                     fallbackName: "BlackHole Pro Lifetime",
                     fallbackTerms: "One-time purchase, no subscription")
+            planRow(id: SubscriptionManager.yearlyID,
+                    fallbackName: "BlackHole Pro Yearly",
+                    fallbackTerms: "Billed every year, auto-renews")
 
             if subscription.products.isEmpty && !QAMock.enabled {
                 HStack(spacing: 8) {
@@ -264,20 +264,8 @@ struct PaywallSheet: View {
     }
 
     private func badge(for id: String) -> String? {
-        if id == SubscriptionManager.yearlyID {
-            if let save = yearlySavingsPercent { return "SAVE \(save)%" }
-            return "BEST VALUE"
-        }
+        if id == SubscriptionManager.lifetimeID { return "BEST VALUE" }
         return nil
-    }
-
-    private var yearlySavingsPercent: Int? {
-        guard let y = subscription.product(SubscriptionManager.yearlyID),
-              let m = subscription.product(SubscriptionManager.monthlyID),
-              m.price > 0 else { return nil }
-        let ratio = (y.price as NSDecimalNumber).doubleValue / ((m.price as NSDecimalNumber).doubleValue * 12)
-        let pct = Int(((1 - ratio) * 100).rounded())
-        return pct >= 10 ? pct : nil
     }
 
     private func trialText(_ p: Product) -> String? {
@@ -339,9 +327,9 @@ struct PaywallSheet: View {
     private var ctaFinePrint: String {
         guard let p = subscription.product(selectedID) else {
             if QAMock.enabled && selectedID == SubscriptionManager.yearlyID {
-                return "1 week free. Then $29.99 per year until you cancel. Cancel any time before the trial ends and you won't be charged."
+                return "1 week free. Then $17.99 per year until you cancel. Cancel any time before the trial ends and you won't be charged."
             }
-            return "Choose Yearly, Monthly or Lifetime."
+            return "Choose Lifetime or Yearly."
         }
         if p.type == .nonConsumable { return "Pay once. No renewals." }
         let period = periodText(p.subscription!.subscriptionPeriod, singular: false)
@@ -401,9 +389,9 @@ enum QAMock {
     static func price(_ id: String) -> String? {
         guard enabled else { return nil }
         switch id {
-        case SubscriptionManager.yearlyID:  return "$29.99"
+        case SubscriptionManager.yearlyID:  return "$17.99"
         case SubscriptionManager.monthlyID: return "$4.99"
-        default:                            return "$49.99"
+        default:                            return "$12.99"
         }
     }
     static func suffix(_ id: String) -> String? {
@@ -417,7 +405,7 @@ enum QAMock {
     static func terms(_ id: String) -> String? {
         guard enabled else { return nil }
         switch id {
-        case SubscriptionManager.yearlyID:  return "1 week free, then $29.99 per year | about $2.50 a month"
+        case SubscriptionManager.yearlyID:  return "1 week free, then $17.99 per year | about $1.50 a month"
         case SubscriptionManager.monthlyID: return "1 week free, then $4.99 per month"
         default:                            return "One-time purchase. Pro forever, no subscription."
         }
