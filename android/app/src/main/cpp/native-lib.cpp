@@ -102,6 +102,7 @@ Java_com_orchestrsim_blackhole_NativeBridge_nativeSetParams(
     s.diskDensity = f[4]; s.diskTemp = f[5]; s.diskSize = f[6]; s.diskScaleHeight = f[7];
     s.bloomThreshold = f[8]; s.bloomIntensity = f[9]; s.autoSpin = f[10];
     s.renderScale = f[14];
+    s.diskSpeed = f[15];
     s.maxRaySteps = i[0];
     s.flagsMask = (uint8_t)i[1];
     s.taaEnabled = i[2] != 0;

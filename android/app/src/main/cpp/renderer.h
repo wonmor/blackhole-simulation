@@ -50,15 +50,18 @@ struct BHUniforms {
     float   bloomIntensity;       // 96
     float   taaFeedback;          // 100
     float   frameDragStrength;    // 104
-    int32_t frameIndex;           // 108 -> 112
+    int32_t frameIndex;           // 108
+    float   diskTime;             // 112  disk rotation phase clock (speed-scaled)
+    float   _pad0, _pad1, _pad2;  // 116 -> 128
 };
-static_assert(sizeof(BHUniforms) == 112, "BHUniforms must match GLSL std140 block");
+static_assert(sizeof(BHUniforms) == 128, "BHUniforms must match GLSL std140 block");
 
 // Target state pushed from the UI thread. Read once per frame under lock.
 struct InputState {
     float mass = 1.0f, spin = 0.5f, lensingStrength = 0.7f, frameDragStrength = 2.0f;
     float diskDensity = 4.0f, diskTemp = 9500.0f, diskSize = 50.0f, diskScaleHeight = 0.2f;
     float bloomThreshold = 1.0f, bloomIntensity = 0.45f, autoSpin = 0.005f;
+    float diskSpeed = 1.0f;          // disk rotation speed multiplier (0 = frozen)
     float targetYaw = 0.5f, targetPitch = 0.539f, targetZoom = 100.0f;
     float renderScale = 1.0f;
     int   maxRaySteps = 128;
@@ -176,7 +179,7 @@ private:
     VkCommandPool   cmdPool_ = VK_NULL_HANDLE;
     VkCommandBuffer cmd_ = VK_NULL_HANDLE;
     VkSemaphore     semImageAvailable_ = VK_NULL_HANDLE;
-    VkSemaphore     semRenderFinished_ = VK_NULL_HANDLE;
+    std::vector<VkSemaphore> semRenderFinished_;   // one per swapchain image
     VkFence         fence_ = VK_NULL_HANDLE;
 
     VkBuffer        uboBuffer_ = VK_NULL_HANDLE;
@@ -200,6 +203,8 @@ private:
 
     // Frame timing / camera smoothing / adaptive resolution (ported from Swift)
     double startTime_ = 0.0;
+    double diskTime_ = 0.0;         // integrates dt * diskSpeed
+    double lastScaleChange_ = 0.0;  // dynamic-resolution cooldown
     double lastFrameTime_ = 0.0;
     int32_t frameIndex_ = 0;
     double smoothedFPS_ = 0.0;

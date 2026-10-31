@@ -76,7 +76,7 @@ fun LessonsList(pro: ProManager, onPick: (Lesson) -> Unit, onClose: () -> Unit) 
 
 /** Card over the live simulation while a lesson is active. */
 @Composable
-fun LessonCard(lesson: Lesson, pro: ProManager, onGo: (Lesson) -> Unit, onEnd: () -> Unit, modifier: Modifier = Modifier) {
+fun LessonCard(lesson: Lesson, pro: ProManager, onGo: (Lesson) -> Unit, onEnd: () -> Unit, onFinish: () -> Unit = onEnd, modifier: Modifier = Modifier) {
     var expanded by remember(lesson) { mutableStateOf(true) }
     Column(
         modifier
@@ -110,7 +110,7 @@ fun LessonCard(lesson: Lesson, pro: ProManager, onGo: (Lesson) -> Unit, onEnd: (
             Spacer(Modifier.weight(1f))
             val next = Lesson.entries.getOrNull(lesson.ordinal + 1)
             if (next == null) {
-                TextButton(onClick = onEnd) { Text("Finish", color = Accent) }
+                TextButton(onClick = onFinish) { Text("Finish", color = Accent) }
             } else {
                 val locked = next.isPro && !pro.isPro
                 Button(

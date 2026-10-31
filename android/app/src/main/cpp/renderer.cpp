@@ -76,7 +76,6 @@ bool Renderer::init(ANativeWindow* window) {
 
     VkSemaphoreCreateInfo si{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
     VK_CHECK(vkCreateSemaphore(device_, &si, nullptr, &semImageAvailable_));
-    VK_CHECK(vkCreateSemaphore(device_, &si, nullptr, &semRenderFinished_));
     VkFenceCreateInfo fi{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
     fi.flags = VK_FENCE_CREATE_SIGNALED_BIT;
     VK_CHECK(vkCreateFence(device_, &fi, nullptr, &fence_));
@@ -222,6 +221,13 @@ bool Renderer::createSwapchain() {
     vkGetSwapchainImagesKHR(device_, swapchain_, &sc, swapImages_.data());
 
     swapViews_.resize(sc);
+    // One render-finished semaphore per swapchain image: a single shared one
+    // can be re-signalled while the presentation engine still waits on it.
+    semRenderFinished_.assign(sc, VK_NULL_HANDLE);
+    for (uint32_t i = 0; i < sc; ++i) {
+        VkSemaphoreCreateInfo si{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+        VK_CHECK(vkCreateSemaphore(device_, &si, nullptr, &semRenderFinished_[i]));
+    }
     swapFramebuffers_.resize(sc);
     for (uint32_t i = 0; i < sc; ++i) {
         VkImageViewCreateInfo vi{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
@@ -249,6 +255,8 @@ void Renderer::destroySwapchain() {
     swapFramebuffers_.clear();
     swapViews_.clear();
     swapImages_.clear();
+    for (auto sem : semRenderFinished_) if (sem) vkDestroySemaphore(device_, sem, nullptr);
+    semRenderFinished_.clear();
     if (swapchain_) { vkDestroySwapchainKHR(device_, swapchain_, nullptr); swapchain_ = VK_NULL_HANDLE; }
 }
 
@@ -272,9 +280,15 @@ static VkRenderPass makeRenderPass(VkDevice dev, VkFormat fmt, VkImageLayout fin
     VkSubpassDependency deps[2]{};
     deps[0].srcSubpass = VK_SUBPASS_EXTERNAL;
     deps[0].dstSubpass = 0;
-    deps[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    // Source scope must include COLOR_ATTACHMENT_OUTPUT: that is the stage the
+    // swapchain-acquire semaphore waits at, and the UNDEFINED -> attachment
+    // layout transition has to happen after it. With FRAGMENT_SHADER alone the
+    // transition can run while the presentation engine still reads the image,
+    // which showed up as flicker on Mali/PowerVR phones (Play review, HNELN2-Q1).
+    deps[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                           VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     deps[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    deps[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    deps[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     deps[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     deps[1].srcSubpass = 0;
     deps[1].dstSubpass = VK_SUBPASS_EXTERNAL;
@@ -639,9 +653,15 @@ void Renderer::updateDynamicScale(double dt, const InputState& s) {
     float next = (float)((double)dynamicScale_ - correction * 0.02);
     dynamicScale_ = clampf(next, dynamicScaleMin_, dynamicScaleMax_);
 
-    auto quantize = [](float x) { return std::round(x * 20.0f) / 20.0f; };
-    float effective = quantize(dynamicScale_ * s.renderScale);
-    if (std::abs(effective - rtScale_) > 0.001f) {
+    // Reallocating the targets drops the TAA history, so every step is a
+    // visible pop. Use coarse 0.1 steps and at most one change every 2 s, so a
+    // GPU that hovers around the target can't ping-pong (seen as flicker).
+    auto quantize = [](float x) { return std::round(x * 10.0f) / 10.0f; };
+    float effective = clampf(quantize(dynamicScale_ * s.renderScale),
+                             dynamicScaleMin_, dynamicScaleMax_);
+    double now = lastFrameTime_;
+    if (std::abs(effective - rtScale_) > 0.001f && now - lastScaleChange_ > 2.0) {
+        lastScaleChange_ = now;
         createOffscreenTargets(swapExtent_.width, swapExtent_.height, effective);
     }
 }
@@ -678,6 +698,7 @@ BHUniforms Renderer::buildUniforms(const InputState& s, double now) {
     u.bloomIntensity = s.bloomIntensity;
     u.frameDragStrength = s.frameDragStrength;
     u.frameIndex = frameIndex_;
+    u.diskTime = (float)diskTime_;
     u.taaFeedback = s.taaEnabled ? 0.92f : 0.0f;
     return u;
 }
@@ -752,6 +773,7 @@ void Renderer::drawFrame() {
     double dt = std::max(1.0 / 240.0, std::min(now - lastFrameTime_, 1.0 / 15.0));
     lastFrameTime_ = now;
     smoothedFPS_ = smoothedFPS_ * 0.92 + (1.0 / dt) * 0.08;
+    diskTime_ += dt * (double)std::max(0.0f, s.diskSpeed);
 
     // Auto-spin: advance the persistent yaw target when idle.
     bool interacting = (now - s.lastInteraction) < 0.6;
@@ -814,7 +836,9 @@ void Renderer::drawFrame() {
     // 2. TAA (or copy) -> history[cur]
     RenderTarget& resolved = history_[historyIdx_];
     RenderTarget& prev = history_[1 - historyIdx_];
-    if (s.taaEnabled) {
+    // Never sample a history target that has not been written yet (fresh
+    // allocation after a resize or a dynamic-resolution step): copy instead.
+    if (s.taaEnabled && historyValid_) {
         recordPass(cmd_, rpOffscreen_, resolved.framebuffer, resolved.width, resolved.height,
                    taaPipe_, sceneRT_.view, prev.view, 1);
     } else {
@@ -849,12 +873,12 @@ void Renderer::drawFrame() {
     submit.commandBufferCount = 1;
     submit.pCommandBuffers = &cmd_;
     submit.signalSemaphoreCount = 1;
-    submit.pSignalSemaphores = &semRenderFinished_;
+    submit.pSignalSemaphores = &semRenderFinished_[imgIdx];
     VK_CHECK(vkQueueSubmit(queue_, 1, &submit, fence_));
 
     VkPresentInfoKHR present{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
     present.waitSemaphoreCount = 1;
-    present.pWaitSemaphores = &semRenderFinished_;
+    present.pWaitSemaphores = &semRenderFinished_[imgIdx];
     present.swapchainCount = 1;
     present.pSwapchains = &swapchain_;
     present.pImageIndices = &imgIdx;
@@ -934,7 +958,6 @@ void Renderer::shutdown() {
 
     if (sampler_) vkDestroySampler(device_, sampler_, nullptr);
     if (semImageAvailable_) vkDestroySemaphore(device_, semImageAvailable_, nullptr);
-    if (semRenderFinished_) vkDestroySemaphore(device_, semRenderFinished_, nullptr);
     if (fence_) vkDestroyFence(device_, fence_, nullptr);
     if (cmdPool_) vkDestroyCommandPool(device_, cmdPool_, nullptr);
 

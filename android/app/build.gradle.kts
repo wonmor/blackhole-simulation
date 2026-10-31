@@ -137,6 +137,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("com.android.billingclient:billing:8.3.0")
+    implementation("com.google.android.play:review-ktx:2.0.2")
 
     val composeBom = platform("androidx.compose:compose-bom:2024.10.01")
     implementation(composeBom)

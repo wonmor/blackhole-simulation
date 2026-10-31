@@ -36,12 +36,8 @@ const val TERMS_URL = "https://play.google.com/about/play-terms/"
 fun Paywall(pro: ProManager, onClose: () -> Unit) {
     val ctx = LocalContext.current
     val plans = pro.plans()
-    var selected by remember { mutableStateOf(ProManager.PLAN_YEARLY) }
+    var selected by remember { mutableStateOf("lifetime") }
     val chosen = plans.firstOrNull { it.key == selected } ?: plans.firstOrNull()
-    val monthly = plans.firstOrNull { it.key == ProManager.PLAN_MONTHLY }
-    val yearly = plans.firstOrNull { it.key == ProManager.PLAN_YEARLY }
-    val savePct = if (monthly != null && yearly != null && monthly.priceMicros > 0)
-        (100 - yearly.priceMicros * 100 / (monthly.priceMicros * 12)).toInt() else 0
 
     fun open(url: String) = ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 
@@ -61,12 +57,12 @@ fun Paywall(pro: ProManager, onClose: () -> Unit) {
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        pro.paywallReason?.let { "$it is part of Pro" } ?: "BlackHole Pro",
+                        pro.paywallHeadline ?: pro.paywallReason?.let { "$it is part of Pro" } ?: "BlackHole Pro",
                         color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "The live simulator, two lessons and snapshots are free. Pro unlocks every setting and the studio tools.",
+                        "Mass, spin, the disk, Low to High quality, four scenarios, two lessons and snapshots stay free. Pro adds the rest, once, for good.",
                         color = Color.White.copy(alpha = 0.62f), fontSize = 12.sp
                     )
                 }
@@ -75,14 +71,14 @@ fun Paywall(pro: ProManager, onClose: () -> Unit) {
                 }
             }
 
-            feature(Icons.Outlined.Tune, "Every setting",
-                "Mass, spin, lensing, the accretion disk, bloom, camera, effects and Low to Ultra quality.")
-            feature(Icons.Outlined.Camera, "Cinematic ray tracing",
-                "500 geodesic steps per pixel, twice Ultra: a sharper photon ring and more higher-order images.")
+            feature(Icons.Outlined.Camera, "Ultra and Cinematic ray tracing",
+                "Up to 500 geodesic steps per pixel: a sharper photon ring and more higher-order images.")
             feature(Icons.Outlined.AutoAwesome, "Six more scenarios",
                 "M87*, a film-style thin disk, retrograde spin, Cygnus X-1, a quasar and a bare shadow.")
             feature(Icons.Outlined.School, "All eight lessons",
                 "Guided tours of Doppler beaming, redshift, frame dragging, the ISCO, disk colour and jets.")
+            feature(Icons.Outlined.Tune, "Studio tuning",
+                "Lensing and frame-drag strength, bloom and camera auto-spin.")
             feature(Icons.Outlined.FavoriteBorder, "Support an independent developer",
                 "No ads, no tracking, no account. Pro is how the app is funded.")
 
@@ -101,7 +97,7 @@ fun Paywall(pro: ProManager, onClose: () -> Unit) {
             }
             plans.forEach { p ->
                 val isSel = chosen?.key == p.key
-                val badge = if (p.key == ProManager.PLAN_YEARLY) (if (savePct >= 10) "SAVE $savePct%" else "BEST VALUE") else null
+                val badge = if (p.key == "lifetime") "BEST VALUE" else null
                 val terms = when {
                     p.key == "lifetime" -> "One-time purchase. Pro forever, no subscription."
                     p.trialDays > 0 -> "${trialLabel(p.trialDays)} free, then ${p.price} ${p.per}"
@@ -177,7 +173,7 @@ fun Paywall(pro: ProManager, onClose: () -> Unit) {
                 )
             }
             Text(
-                "Subscriptions renew automatically at the same price and length until cancelled. Cancel any time in Google Play, Payments and subscriptions. Lifetime is a single payment.",
+                "Lifetime is a single payment with no renewals. Yearly renews automatically at the same price until cancelled; cancel any time in Google Play, Payments and subscriptions.",
                 color = Color.White.copy(alpha = 0.42f), fontSize = 10.sp, textAlign = TextAlign.Center
             )
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {

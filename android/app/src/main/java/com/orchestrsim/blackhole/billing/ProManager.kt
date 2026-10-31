@@ -21,9 +21,10 @@ import com.android.billingclient.api.QueryPurchasesParams
  * Google Play Billing for BlackHole Pro.
  *
  * Products (Play Console):
- *  - subscription `blackhole_pro`, base plans `monthly` (P1M) and `yearly`
- *    (P1Y), each with a 1-week free-trial offer for new subscribers;
- *  - one-time product `blackhole_pro_lifetime`.
+ *  - one-time product `blackhole_pro_lifetime` (the main offer);
+ *  - subscription `blackhole_pro`, base plan `yearly` (P1Y) with a 1-week
+ *    free-trial offer. The legacy `monthly` base plan stays active for
+ *    existing subscribers but is no longer shown on the paywall.
  *
  * Any active purchase of either unlocks Pro. The last known entitlement is
  * cached so Pro works offline; Play remains the source of truth and is
@@ -51,9 +52,19 @@ class ProManager(context: Context) : PurchasesUpdatedListener {
     /** Paywall presentation + which locked feature opened it. */
     var showPaywall by mutableStateOf(false)
     var paywallReason by mutableStateOf<String?>(null)
+    /** Overrides the paywall headline (used by the post-"wow" prompt). */
+    var paywallHeadline by mutableStateOf<String?>(null)
 
     fun openPaywall(reason: String? = null) {
         paywallReason = reason
+        paywallHeadline = null
+        showPaywall = true
+    }
+
+    /** Soft prompt shown once, after the user has enjoyed the free simulator. */
+    fun openPaywallAfterWow() {
+        paywallReason = null
+        paywallHeadline = "Enjoying the view?"
         showPaywall = true
     }
 
@@ -196,15 +207,22 @@ class ProManager(context: Context) : PurchasesUpdatedListener {
         val details: ProductDetails
     )
 
+    /**
+     * Plans shown on the paywall, lifetime first (the main offer), then yearly
+     * with its trial. The monthly base plan stays active on Play so existing
+     * subscribers keep it, but it is no longer offered here.
+     */
     fun plans(): List<Plan> {
         val out = mutableListOf<Plan>()
+        lifetimeDetails?.let { d ->
+            d.oneTimePurchaseOfferDetails?.let { o ->
+                out += Plan("lifetime", "Lifetime", o.formattedPrice, "once", 0, o.priceAmountMicros, null, d)
+            }
+        }
         subDetails?.let { d ->
-            for ((plan, title, per) in listOf(
-                Triple(PLAN_YEARLY, "Yearly", "per year"),
-                Triple(PLAN_MONTHLY, "Monthly", "per month")
-            )) {
-                val offers = d.subscriptionOfferDetails.orEmpty().filter { it.basePlanId == plan }
-                if (offers.isEmpty()) continue
+            val plan = PLAN_YEARLY
+            val offers = d.subscriptionOfferDetails.orEmpty().filter { it.basePlanId == plan }
+            if (offers.isNotEmpty()) {
                 // Play only returns offers this user is eligible for; prefer one
                 // with a free phase (the trial), else the base plan itself.
                 val trial = offers.firstOrNull { o ->
@@ -213,14 +231,9 @@ class ProManager(context: Context) : PurchasesUpdatedListener {
                 val chosen = trial ?: offers.firstOrNull { it.offerId == null } ?: offers.first()
                 val recurring = chosen.pricingPhases.pricingPhaseList.last()
                 val free = chosen.pricingPhases.pricingPhaseList.firstOrNull { it.priceAmountMicros == 0L }
-                out += Plan(plan, title, recurring.formattedPrice, per,
+                out += Plan(plan, "Yearly", recurring.formattedPrice, "per year",
                     free?.let { isoDays(it.billingPeriod) } ?: 0,
                     recurring.priceAmountMicros, chosen.offerToken, d)
-            }
-        }
-        lifetimeDetails?.let { d ->
-            d.oneTimePurchaseOfferDetails?.let { o ->
-                out += Plan("lifetime", "Lifetime", o.formattedPrice, "once", 0, o.priceAmountMicros, null, d)
             }
         }
         return out

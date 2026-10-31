@@ -29,10 +29,12 @@ void main() {
     vec3 m1 = vec3(0.0);
     vec3 m2 = vec3(0.0);
     vec3 center = rgb_to_ycocg(texelFetch(currTex, pos, 0).rgb);
+    if (any(isnan(center)) || any(isinf(center))) center = vec3(0.0);
     for (int dy = -1; dy <= 1; ++dy) {
         for (int dx = -1; dx <= 1; ++dx) {
             ivec2 sp = clamp(pos + ivec2(dx, dy), ivec2(0), ivec2(w - 1, h - 1));
             vec3 s = rgb_to_ycocg(texelFetch(currTex, sp, 0).rgb);
+            if (any(isnan(s)) || any(isinf(s))) s = vec3(0.0);
             m1 += s;
             m2 += s * s;
         }
@@ -43,6 +45,10 @@ void main() {
     vec3 boxMax = mean + 2.0 * sd;
 
     vec3 history = rgb_to_ycocg(texture(histTex, uv).rgb);
+    // A freshly allocated history target holds undefined memory; some
+    // Mali/PowerVR drivers hand back NaN/Inf there. NaN * 0 is still NaN, so
+    // scrub it explicitly instead of trusting taaFeedback = 0.
+    if (any(isnan(history)) || any(isinf(history))) history = center;
     history = clamp(history, boxMin, boxMax);
 
     vec3 resolved = mix(center, history, u.taaFeedback);

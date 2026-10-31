@@ -29,7 +29,8 @@ layout(set = 0, binding = 0, std140) uniform U {
     float bloomIntensity;      // 96
     float taaFeedback;         // 100
     float frameDragStrength;   // 104
-    int   frameIndex;          // 108  -> 112
+    int   frameIndex;          // 108
+    float diskTime;            // 112  disk rotation clock (speed-scaled)
 } u;
 
 float saturate(float x) { return clamp(x, 0.0, 1.0); }

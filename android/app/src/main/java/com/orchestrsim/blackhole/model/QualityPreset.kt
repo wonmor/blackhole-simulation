@@ -21,7 +21,8 @@ enum class QualityPreset(
     /** Pro: the shader's maximum ray budget (500 steps, ~2x Ultra). */
     CINEMATIC("Cine", 500, 1.0f, true, true);
 
-    val isPro: Boolean get() = this == CINEMATIC
+    /** Ultra and Cinematic are BlackHole Pro; Low to High are free. */
+    val isPro: Boolean get() = this == ULTRA || this == CINEMATIC
 
     companion object {
         /** Conservative per-device default; user can crank it up in Controls. */

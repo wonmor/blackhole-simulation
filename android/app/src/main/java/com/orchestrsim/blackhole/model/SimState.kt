@@ -26,6 +26,8 @@ class SimState(context: Context) {
     var diskTemp by persistFloat("diskTemp", 9500.0f)
     var diskSize by persistFloat("diskSize", 50.0f)
     var diskScaleHeight by persistFloat("diskScale", 0.2f)
+    /** Disk rotation speed multiplier: 0 freezes the disk, 1 is the default. */
+    var diskSpeed by persistFloat("diskSpeed", 1.0f)
 
     // Camera (not persisted)
     var zoom by mutableStateOf(100.0f)
@@ -71,7 +73,7 @@ class SimState(context: Context) {
             mass, spin, lensingStrength, frameDragStrength,
             diskDensity, diskTemp, diskSize, diskScaleHeight,
             bloomThreshold, bloomIntensity, autoSpin,
-            yaw, pitch, zoom, preset.renderScale, 0.0f
+            yaw, pitch, zoom, preset.renderScale, diskSpeed
         )
         val i = intArrayOf(
             preset.maxRaySteps,
@@ -84,15 +86,22 @@ class SimState(context: Context) {
 
     fun pushCamera() = NativeBridge.nativeSetCamera(yaw, pitch, zoom)
 
-    fun applyScenario(s: Scenario) {
+    /** Free users can't land on a Pro preset via a scenario or lesson. */
+    private fun clampPreset(allowPro: Boolean) {
+        if (!allowPro && preset.isPro) preset = QualityPreset.HIGH
+    }
+
+    fun applyScenario(s: Scenario, allowPro: Boolean) {
         s.apply(this)
+        clampPreset(allowPro)
         prefs.edit().putString("preset", preset.name).apply()
         pushParams()
         pushCamera()
     }
 
-    fun applyLesson(l: Lesson) {
+    fun applyLesson(l: Lesson, allowPro: Boolean) {
         l.apply(this)
+        clampPreset(allowPro)
         prefs.edit().putString("preset", preset.name).apply()
         pushParams()
         pushCamera()

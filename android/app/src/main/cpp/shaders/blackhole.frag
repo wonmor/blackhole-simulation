@@ -198,7 +198,7 @@ vec3 sample_disk(vec3 p, vec3 p_prev, vec3 v, float r, float isco,
     float sqrt_M = sqrt(max(M, 1e-6));
     float signSpin = (u.spin >= 0.0) ? 1.0 : -1.0;
     float OmegaPhase = (signSpin * sqrt_M) / (sampleR * sqrt(sampleR) + a * sqrt_M);
-    float rotAngle = OmegaPhase * u.time * DISK_TIME_SCALE * 10.0;
+    float rotAngle = OmegaPhase * u.diskTime * DISK_TIME_SCALE * 10.0;
     mat2 rotPhase = rot(rotAngle);
     vec3 noiseP = sampleP;
     {

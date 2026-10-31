@@ -43,7 +43,9 @@ import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.shape.RoundedCornerShape as Rcs
+import com.orchestrsim.blackhole.billing.Engagement
 import com.orchestrsim.blackhole.billing.ProManager
+import com.google.android.play.core.review.ReviewManagerFactory
 import com.orchestrsim.blackhole.model.Lesson
 import com.orchestrsim.blackhole.model.QualityPreset
 import com.orchestrsim.blackhole.model.SimState
@@ -60,6 +62,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 class MainActivity : ComponentActivity() {
     private lateinit var sim: SimState
     private lateinit var pro: ProManager
+    private lateinit var engagement: Engagement
     var surfaceView: BlackHoleSurfaceView? = null
     /** Debuggable builds only (`--ez debug_no_render true`): skip the Vulkan view so
      *  emulators without a usable GPU can still capture the Compose UI. */
@@ -74,6 +77,7 @@ class MainActivity : ComponentActivity() {
         )
         sim = SimState(this)
         pro = ProManager(this)
+        engagement = Engagement(this)
         applyDebugProOverride(intent)
         pro.start()
         setContent { BlackHoleTheme { BlackHoleApp(this, sim, pro) } }
@@ -113,6 +117,30 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    /**
+     * A good moment just happened (scenario applied, lesson finished, snapshot
+     * saved). Shows the one-time paywall or asks for a Play rating, after a
+     * short pause so the user first sees the result of what they did.
+     */
+    fun onMoment(m: Engagement.Moment) {
+        when (engagement.onMoment(m, pro.isPro)) {
+            Engagement.Action.PAYWALL -> Handler(Looper.getMainLooper()).postDelayed({
+                if (!pro.isPro && !pro.showPaywall) pro.openPaywallAfterWow()
+            }, 1500)
+            Engagement.Action.REVIEW -> Handler(Looper.getMainLooper()).postDelayed({ askForReview() }, 1200)
+            Engagement.Action.NONE -> Unit
+        }
+    }
+
+    /** Play In-App Review. Play decides whether the sheet actually appears. */
+    private fun askForReview() {
+        if (isFinishing || isDestroyed) return
+        val manager = ReviewManagerFactory.create(this)
+        manager.requestReviewFlow().addOnCompleteListener { task ->
+            if (task.isSuccessful && !isFinishing) manager.launchReviewFlow(this, task.result)
+        }
+    }
+
     /** Free: copies the current frame of the Vulkan surface into Pictures/BlackHole. */
     fun saveSnapshot() {
         val v = surfaceView ?: return
@@ -140,6 +168,7 @@ class MainActivity : ComponentActivity() {
                 contentResolver.openOutputStream(uri)!!.use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
             }.isSuccess
             Toast.makeText(this, if (ok) "Saved to Pictures/BlackHole" else "Couldn't save the image.", Toast.LENGTH_SHORT).show()
+            if (ok) onMoment(Engagement.Moment.SNAPSHOT)
         }, Handler(Looper.getMainLooper()))
     }
 }
@@ -154,7 +183,7 @@ private fun BlackHoleApp(activity: MainActivity, sim: SimState, pro: ProManager)
 
     // Pro lapsed (refund / expiry): fall back to the best free preset.
     LaunchedEffect(pro.isPro) {
-        if (!pro.isPro && sim.preset.isPro) sim.selectPreset(QualityPreset.ULTRA)
+        if (!pro.isPro && sim.preset.isPro) sim.selectPreset(QualityPreset.HIGH)
     }
 
     BackHandler(enabled = pro.showPaywall || showLessons || showControls || activeLesson != null) {
@@ -218,8 +247,12 @@ private fun BlackHoleApp(activity: MainActivity, sim: SimState, pro: ProManager)
             val lesson = activeLesson
             if (lesson != null) {
                 LessonCard(lesson, pro,
-                    onGo = { l -> sim.applyLesson(l); activeLesson = l },
-                    onEnd = { activeLesson = null })
+                    onGo = { l ->
+                        if (l.ordinal > lesson.ordinal) activity.onMoment(Engagement.Moment.LESSON_DONE)
+                        sim.applyLesson(l, pro.isPro); activeLesson = l
+                    },
+                    onEnd = { activeLesson = null },
+                    onFinish = { activeLesson = null; activity.onMoment(Engagement.Moment.LESSON_DONE) })
             } else if (!showControls) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     pill(Icons.Outlined.School, "Lessons", false) { showLessons = true }
@@ -257,13 +290,17 @@ private fun BlackHoleApp(activity: MainActivity, sim: SimState, pro: ProManager)
             ) {
                 ControlPanel(sim, pro,
                     onLessons = { showControls = false; showLessons = true },
-                    onSnapshot = { activity.saveSnapshot() })
+                    onSnapshot = { activity.saveSnapshot() },
+                    onScenario = { s ->
+                        sim.applyScenario(s, pro.isPro)
+                        activity.onMoment(Engagement.Moment.SCENARIO)
+                    })
             }
         }
 
         AnimatedVisibility(visible = showLessons, enter = fadeIn(), exit = fadeOut()) {
             LessonsList(pro,
-                onPick = { l -> sim.applyLesson(l); activeLesson = l; showLessons = false },
+                onPick = { l -> sim.applyLesson(l, pro.isPro); activeLesson = l; showLessons = false },
                 onClose = { showLessons = false })
         }
 
@@ -303,7 +340,7 @@ private fun pill(icon: androidx.compose.ui.graphics.vector.ImageVector, label: S
 
 // A value whose identity changes when any tracked parameter changes.
 private fun paramSnapshot(s: SimState): List<Any> = listOf(
-    s.mass, s.spin, s.lensingStrength, s.frameDragStrength,
+    s.mass, s.spin, s.lensingStrength, s.frameDragStrength, s.diskSpeed,
     s.diskDensity, s.diskTemp, s.diskSize, s.diskScaleHeight,
     s.bloomThreshold, s.bloomIntensity, s.autoSpin,
     s.preset, s.enableLensing, s.enableDisk, s.enableDoppler,
