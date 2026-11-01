@@ -1,5 +1,16 @@
 import SwiftUI
 
+/// Debug-only store-screenshot mode (`-bhScreenshotMode` launch arg): no
+/// notification prompt, no FPS/perf row, full-resolution render. Always off
+/// in release builds.
+enum ScreenshotMode {
+    #if DEBUG
+    static let isOn = ProcessInfo.processInfo.arguments.contains("-bhScreenshotMode")
+    #else
+    static let isOn = false
+    #endif
+}
+
 /// Floating diagnostic HUD. Mixes performance metrics with live physics
 /// readouts pulled from `Gravitas` (Bardeen / Press-Teukolsky closed forms),
 /// plus a collapsible "math" panel listing every closed-form equation the
@@ -48,8 +59,10 @@ struct HUDView: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
-            performanceBlock
-            divider
+            if !ScreenshotMode.isOn {
+                performanceBlock
+                divider
+            }
             physicsBlock
 
             if showMath {

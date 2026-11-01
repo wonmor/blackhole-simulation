@@ -58,7 +58,7 @@ final class PomodoroTimer: ObservableObject {
         if let v = defaults.object(forKey: "pomodoro_long_min") as? Int { longBreakMinutes = v }
         if let v = defaults.object(forKey: "pomodoro_long_every") as? Int { sessionsBeforeLongBreak = v }
         timeRemaining = TimeInterval(workMinutes) * 60
-        Task { await requestNotificationPermission() }
+        if !ScreenshotMode.isOn { Task { await requestNotificationPermission() } }
     }
 
     deinit { timer?.invalidate() }

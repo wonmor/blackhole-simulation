@@ -267,7 +267,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         displayedYaw = nextYaw
 
         // Adaptive resolution PID (after FPS smooths in).
-        if smoothedFPS > 5 {
+        if smoothedFPS > 5 && !ScreenshotMode.isOn {
             updateDynamicScale(dt: dt)
         }
 

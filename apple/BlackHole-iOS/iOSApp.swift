@@ -35,6 +35,7 @@ struct BlackHoleiOSApp: App {
         if args.contains("-bhSkipWelcome") { ui.markWelcomeSeen() }
         if let n = value("-bhScenario"), let sc = Scenario(rawValue: n) { sc.apply(to: params) }
         if let q = value("-bhPreset"), let p = QualityPreset(rawValue: q) { params.preset = p }
+        if let z = value("-bhZoom"), let f = Float(z) { params.zoom = f }
         try? await Task.sleep(nanoseconds: 1_500_000_000)
         if let n = value("-bhLesson"), let i = Int(n), let l = Lesson(rawValue: i) {
             l.apply(to: params); ui.activeLesson = l
