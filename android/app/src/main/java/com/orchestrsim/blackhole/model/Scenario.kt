@@ -6,6 +6,7 @@ package com.orchestrsim.blackhole.model
  * effect toggles too, so switching never leaves a stray effect behind.
  */
 enum class Scenario(val displayName: String, val subtitle: String, val isPro: Boolean) {
+    // Glyphs for the scenario cards live in ui/ControlPanel.kt (scenarioGlyph).
     STELLAR("Stellar", "10 M☉ | a=0.5 | hot disk", false),
     SGR_A("Sgr A* proxy", "Supermassive proxy | a=0.94", false),
     MAXIMAL_SPIN("Maximal Spin", "Near-Kerr extremal | a=0.99", false),

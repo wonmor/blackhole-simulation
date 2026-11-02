@@ -87,6 +87,12 @@ struct RenderTarget {
     uint32_t       width = 0, height = 0;
 };
 
+// Camera + clocks for an offscreen export frame.
+struct ExportCamera {
+    float yaw = 0.5f, pitch = 0.539f, zoom = 100.0f;
+    float time = 0.0f, diskTime = 0.0f;
+};
+
 class Renderer {
 public:
     bool init(ANativeWindow* window);
@@ -100,6 +106,17 @@ public:
     Telemetry telemetry();
 
     bool valid() const { return device_ != VK_NULL_HANDLE; }
+
+    // ---- Offscreen export (render thread only) ----
+    // Renders supersampling pass `passIndex` of `passCount` at w x h into the
+    // export accumulator. On the last pass it bloom-composites, tone-maps and
+    // copies tightly packed RGBA8 into `outRGBA` (w*h*4 bytes).
+    bool exportPass(uint32_t w, uint32_t h, const ExportCamera& cam, int raySteps,
+                    int passIndex, int passCount, uint8_t* outRGBA);
+    void releaseExport();
+    ExportCamera currentCamera();
+    // Frame-rate target for the adaptive-resolution controller (wallpaper caps at 30).
+    void setTargetFps(double fps) { pidTargetFPS_ = fps; }
 
 private:
     // ---- setup ----
@@ -120,7 +137,13 @@ private:
 
     // ---- helpers ----
     uint32_t findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags props);
-    bool makeTarget(RenderTarget& rt, uint32_t w, uint32_t h, VkRenderPass rp);
+    bool makeTarget(RenderTarget& rt, uint32_t w, uint32_t h, VkRenderPass rp,
+                    VkFormat fmt = kHdrFormat, VkImageUsageFlags extraUsage = 0);
+    bool ensureExportTargets(uint32_t w, uint32_t h);
+    bool submitAndWait(VkCommandBuffer cb);
+    void recordPassArea(VkCommandBuffer cb, VkRenderPass rp, VkFramebuffer fb,
+                        uint32_t fbW, uint32_t fbH, VkRect2D area, VkPipeline pipe,
+                        VkImageView tex0, VkImageView tex1, uint32_t setIndex);
     void destroyTarget(RenderTarget& rt);
     VkShaderModule loadModule(const char* name);
     VkPipeline buildPipeline(VkShaderModule vert, VkShaderModule frag,
@@ -170,6 +193,18 @@ private:
     VkPipeline blurVPipe_ = VK_NULL_HANDLE;
     VkPipeline copyPipe_ = VK_NULL_HANDLE;
     VkPipeline compositePipe_ = VK_NULL_HANDLE;
+    VkPipeline accumPipe_ = VK_NULL_HANDLE;
+
+    // Export resources (allocated on demand, freed by releaseExport)
+    VkRenderPass rpOffscreenLoad_ = VK_NULL_HANDLE;  // LOAD, SHADER_READ -> SHADER_READ (tiles)
+    VkRenderPass rpExport_ = VK_NULL_HANDLE;         // swap format, -> TRANSFER_SRC
+    RenderTarget expScene_{}, expAccum_[2]{}, expBloomA_{}, expBloomB_{}, expLdr_{};
+    VkBuffer       expReadback_ = VK_NULL_HANDLE;
+    VkDeviceMemory expReadbackMem_ = VK_NULL_HANDLE;
+    void*          expReadbackMapped_ = nullptr;
+    bool           expReadbackCoherent_ = true;
+    VkCommandBuffer expCmd_ = VK_NULL_HANDLE;
+    int            expAccumIdx_ = 0;
 
     VkShaderModule smBlackholeVert_ = VK_NULL_HANDLE;
     VkShaderModule smBlackholeFrag_ = VK_NULL_HANDLE;
@@ -217,7 +252,8 @@ private:
     float dynamicScale_ = 1.0f;
     double pidIntegral_ = 0.0, pidPrevError_ = 0.0;
     const double pidKp_ = 0.025, pidKi_ = 0.005, pidKd_ = 0.04;
-    const double pidTargetFPS_ = 60.0, pidDeadzoneFPS_ = 5.0;
+    double pidTargetFPS_ = 60.0;
+    const double pidDeadzoneFPS_ = 5.0;
     const float dynamicScaleMin_ = 0.5f, dynamicScaleMax_ = 1.0f;
     float rtScale_ = 1.0f;          // scale used to allocate current targets
 

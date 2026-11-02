@@ -8,6 +8,10 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
+#include <deque>
+#include <functional>
+#include <memory>
 #include <mutex>
 #include <thread>
 
@@ -21,6 +25,60 @@ std::thread         g_thread;
 std::atomic<bool>   g_running{false};
 std::atomic<bool>   g_paused{false};
 ANativeWindow*      g_window = nullptr;
+std::atomic<float>  g_frameCap{0.0f};   // 0 = display rate (FIFO)
+
+// Work that must run on the render thread (exports). The caller blocks until
+// the job ran, or until the render thread exits (job reports failure).
+struct Job {
+    std::function<bool(Renderer*)> fn;
+    bool done = false;
+    bool ok = false;
+};
+std::mutex                         g_jobMutex;
+std::condition_variable            g_jobCv;
+std::deque<std::shared_ptr<Job>>   g_jobs;
+
+void drainJobs(Renderer* r) {
+    for (;;) {
+        std::shared_ptr<Job> j;
+        {
+            std::lock_guard<std::mutex> lk(g_jobMutex);
+            if (g_jobs.empty()) return;
+            j = g_jobs.front();
+            g_jobs.pop_front();
+        }
+        bool ok = r ? j->fn(r) : false;
+        {
+            std::lock_guard<std::mutex> lk(g_jobMutex);
+            j->ok = ok;
+            j->done = true;
+        }
+        g_jobCv.notify_all();
+    }
+}
+
+bool runOnRenderThread(std::function<bool(Renderer*)> fn) {
+    if (!g_running.load()) return false;
+    auto j = std::make_shared<Job>();
+    j->fn = std::move(fn);
+    std::unique_lock<std::mutex> lk(g_jobMutex);
+    g_jobs.push_back(j);
+    while (!j->done) {
+        g_jobCv.wait_for(lk, std::chrono::milliseconds(100));
+        if (!j->done && !g_running.load()) {
+            // Render thread is gone; drop the job if it never started.
+            for (auto it = g_jobs.begin(); it != g_jobs.end(); ++it) {
+                if (*it == j) { g_jobs.erase(it); return false; }
+            }
+        }
+    }
+    return j->ok;
+}
+
+double monoNow() {
+    return std::chrono::duration<double>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 
 void renderLoop(ANativeWindow* window) {
     auto* r = new Renderer();
@@ -33,18 +91,28 @@ void renderLoop(ANativeWindow* window) {
     {
         std::lock_guard<std::mutex> lk(g_mutex);
         g_renderer = r;
+        float cap = g_frameCap.load();
+        if (cap > 0.0f) r->setTargetFps(cap);
     }
     while (g_running.load()) {
+        drainJobs(r);
         if (g_paused.load()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(32));
+            std::this_thread::sleep_for(std::chrono::milliseconds(16));
             continue;
         }
+        double start = monoNow();
         r->drawFrame();   // FIFO present paces this to the display refresh
+        float cap = g_frameCap.load();
+        if (cap > 0.0f) {
+            double wait = 1.0 / cap - (monoNow() - start);
+            if (wait > 0.0) std::this_thread::sleep_for(std::chrono::duration<double>(wait));
+        }
     }
     {
         std::lock_guard<std::mutex> lk(g_mutex);
         g_renderer = nullptr;
     }
+    drainJobs(nullptr);   // fail anything still queued
     r->shutdown();
     delete r;
     ANativeWindow_release(window);
@@ -129,6 +197,52 @@ Java_com_orchestrsim_blackhole_NativeBridge_nativeGetTelemetry(
     }
     jfloat vals[3] = {t.fps, t.frameTimeMs, t.effectiveScale};
     env->SetFloatArrayRegion(out, 0, 3, vals);
+}
+
+JNIEXPORT void JNICALL
+Java_com_orchestrsim_blackhole_NativeBridge_nativeSetFrameCap(
+        JNIEnv*, jobject, jfloat fps) {
+    g_frameCap.store(fps > 0.0f ? fps : 0.0f);
+    std::lock_guard<std::mutex> lk(g_mutex);
+    if (g_renderer) g_renderer->setTargetFps(fps > 0.0f ? fps : 60.0);
+}
+
+// out: [yaw, pitch, zoom, time, diskTime]
+JNIEXPORT jboolean JNICALL
+Java_com_orchestrsim_blackhole_NativeBridge_nativeExportCamera(
+        JNIEnv* env, jobject, jfloatArray out) {
+    ExportCamera c;
+    bool ok = runOnRenderThread([&](Renderer* r) { c = r->currentCamera(); return true; });
+    if (!ok) return JNI_FALSE;
+    jfloat v[5] = {c.yaw, c.pitch, c.zoom, c.time, c.diskTime};
+    env->SetFloatArrayRegion(out, 0, 5, v);
+    return JNI_TRUE;
+}
+
+// cam: [yaw, pitch, zoom, time, diskTime]. `out` is a direct ByteBuffer of
+// w*h*4 bytes, written on the last pass only (may be null otherwise).
+JNIEXPORT jboolean JNICALL
+Java_com_orchestrsim_blackhole_NativeBridge_nativeExportPass(
+        JNIEnv* env, jobject, jint w, jint h, jfloatArray jcam, jint raySteps,
+        jint passIndex, jint passCount, jobject out) {
+    jfloat v[5] = {0};
+    env->GetFloatArrayRegion(jcam, 0, 5, v);
+    ExportCamera c{v[0], v[1], v[2], v[3], v[4]};
+    uint8_t* dst = nullptr;
+    if (out) {
+        dst = (uint8_t*)env->GetDirectBufferAddress(out);
+        jlong cap = env->GetDirectBufferCapacity(out);
+        if (!dst || cap < (jlong)w * h * 4) return JNI_FALSE;
+    }
+    bool ok = runOnRenderThread([&](Renderer* r) {
+        return r->exportPass((uint32_t)w, (uint32_t)h, c, raySteps, passIndex, passCount, dst);
+    });
+    return ok ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_com_orchestrsim_blackhole_NativeBridge_nativeExportEnd(JNIEnv*, jobject) {
+    runOnRenderThread([](Renderer* r) { r->releaseExport(); return true; });
 }
 
 }  // extern "C"

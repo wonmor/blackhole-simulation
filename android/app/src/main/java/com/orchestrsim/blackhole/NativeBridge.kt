@@ -24,6 +24,25 @@ object NativeBridge {
     external fun nativeSetCamera(yaw: Float, pitch: Float, zoom: Float)
     external fun nativeGetTelemetry(out: FloatArray)   // [fps, frameTimeMs, effectiveScale]
 
+    /** Caps the render loop (live wallpaper uses 30); 0 = display rate. */
+    external fun nativeSetFrameCap(fps: Float)
+
+    // --- Offscreen export (4K poster, orbit video). Blocking; call off the UI thread. ---
+    /** out: [yaw, pitch, zoom, time, diskTime] of the frame on screen. */
+    external fun nativeExportCamera(out: FloatArray): Boolean
+    /** Renders supersampling pass [passIndex] of [passCount]; fills [out] (w*h*4 RGBA) on the last. */
+    external fun nativeExportPass(
+        w: Int, h: Int, cam: FloatArray, raySteps: Int,
+        passIndex: Int, passCount: Int, out: java.nio.ByteBuffer?
+    ): Boolean
+    external fun nativeExportEnd()
+    external fun nativeRgbaToYuv(
+        rgba: java.nio.ByteBuffer, w: Int, h: Int,
+        y: java.nio.ByteBuffer, yRow: Int, yPix: Int,
+        u: java.nio.ByteBuffer, uRow: Int, uPix: Int,
+        v: java.nio.ByteBuffer, vRow: Int, vPix: Int
+    ): Boolean
+
     // --- Rust Kerr observables (HUD) ---
     external fun nativeKerrHorizon(mass: Double, spin: Double): Double
     external fun nativeKerrPhotonSphere(mass: Double, spin: Double): Double

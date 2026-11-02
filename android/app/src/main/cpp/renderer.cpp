@@ -33,7 +33,9 @@ float clampf(float x, float lo, float hi) { return x < lo ? lo : (x > hi ? hi : 
 }  // namespace
 
 // Defined below; used by createSwapchain().
-static VkRenderPass makeRenderPass(VkDevice dev, VkFormat fmt, VkImageLayout finalLayout);
+static VkRenderPass makeRenderPass(VkDevice dev, VkFormat fmt, VkImageLayout finalLayout,
+                                   VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                                   VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED);
 
 // ===========================================================================
 // Setup
@@ -260,15 +262,16 @@ void Renderer::destroySwapchain() {
     if (swapchain_) { vkDestroySwapchainKHR(device_, swapchain_, nullptr); swapchain_ = VK_NULL_HANDLE; }
 }
 
-static VkRenderPass makeRenderPass(VkDevice dev, VkFormat fmt, VkImageLayout finalLayout) {
+static VkRenderPass makeRenderPass(VkDevice dev, VkFormat fmt, VkImageLayout finalLayout,
+                                   VkAttachmentLoadOp loadOp, VkImageLayout initialLayout) {
     VkAttachmentDescription att{};
     att.format = fmt;
     att.samples = VK_SAMPLE_COUNT_1_BIT;
-    att.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    att.loadOp = loadOp;
     att.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     att.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     att.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    att.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    att.initialLayout = initialLayout;
     att.finalLayout = finalLayout;
 
     VkAttachmentReference ref{0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
@@ -289,7 +292,8 @@ static VkRenderPass makeRenderPass(VkDevice dev, VkFormat fmt, VkImageLayout fin
                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     deps[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     deps[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    deps[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    deps[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+                            (loadOp == VK_ATTACHMENT_LOAD_OP_LOAD ? VK_ACCESS_COLOR_ATTACHMENT_READ_BIT : 0);
     deps[1].srcSubpass = 0;
     deps[1].dstSubpass = VK_SUBPASS_EXTERNAL;
     deps[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -327,17 +331,18 @@ uint32_t Renderer::findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags props
     return 0;
 }
 
-bool Renderer::makeTarget(RenderTarget& rt, uint32_t w, uint32_t h, VkRenderPass rp) {
+bool Renderer::makeTarget(RenderTarget& rt, uint32_t w, uint32_t h, VkRenderPass rp,
+                          VkFormat fmt, VkImageUsageFlags extraUsage) {
     rt.width = w; rt.height = h;
     VkImageCreateInfo ii{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
     ii.imageType = VK_IMAGE_TYPE_2D;
-    ii.format = kHdrFormat;
+    ii.format = fmt;
     ii.extent = {w, h, 1};
     ii.mipLevels = 1;
     ii.arrayLayers = 1;
     ii.samples = VK_SAMPLE_COUNT_1_BIT;
     ii.tiling = VK_IMAGE_TILING_OPTIMAL;
-    ii.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    ii.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | extraUsage;
     ii.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     if (vkCreateImage(device_, &ii, nullptr, &rt.image) != VK_SUCCESS) return false;
 
@@ -352,7 +357,7 @@ bool Renderer::makeTarget(RenderTarget& rt, uint32_t w, uint32_t h, VkRenderPass
     VkImageViewCreateInfo vi{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
     vi.image = rt.image;
     vi.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    vi.format = kHdrFormat;
+    vi.format = fmt;
     vi.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
     if (vkCreateImageView(device_, &vi, nullptr, &rt.view) != VK_SUCCESS) return false;
 
@@ -570,10 +575,12 @@ bool Renderer::createPostPipelines() {
     VkShaderModule blur = loadModule("blur.frag");
     VkShaderModule comp = loadModule("composite.frag");
     VkShaderModule copy = loadModule("copy.frag");
+    VkShaderModule accum = loadModule("accum.frag");
 
     taaPipe_ = buildPipeline(smPostVert_, taa, rpOffscreen_, nullptr);
     brightPipe_ = buildPipeline(smPostVert_, bright, rpOffscreen_, nullptr);
     copyPipe_ = buildPipeline(smPostVert_, copy, rpOffscreen_, nullptr);
+    accumPipe_ = buildPipeline(smPostVert_, accum, rpOffscreen_, nullptr);
     compositePipe_ = buildPipeline(smPostVert_, comp, rpSwap_, nullptr);
 
     // blur direction via specialization constant id 0 (HORIZONTAL).
@@ -589,6 +596,7 @@ bool Renderer::createPostPipelines() {
     vkDestroyShaderModule(device_, blur, nullptr);
     vkDestroyShaderModule(device_, comp, nullptr);
     vkDestroyShaderModule(device_, copy, nullptr);
+    vkDestroyShaderModule(device_, accum, nullptr);
     return compositePipe_ != VK_NULL_HANDLE;
 }
 
@@ -706,6 +714,12 @@ BHUniforms Renderer::buildUniforms(const InputState& s, double now) {
 void Renderer::recordPass(VkCommandBuffer cb, VkRenderPass rp, VkFramebuffer fb,
                           uint32_t w, uint32_t h, VkPipeline pipe,
                           VkImageView tex0, VkImageView tex1, uint32_t setIndex) {
+    recordPassArea(cb, rp, fb, w, h, VkRect2D{{0, 0}, {w, h}}, pipe, tex0, tex1, setIndex);
+}
+
+void Renderer::recordPassArea(VkCommandBuffer cb, VkRenderPass rp, VkFramebuffer fb,
+                              uint32_t w, uint32_t h, VkRect2D area, VkPipeline pipe,
+                              VkImageView tex0, VkImageView tex1, uint32_t setIndex) {
     VkDescriptorSet set = descSets_[setIndex];
 
     VkDescriptorBufferInfo bufInfo{uboBuffer_, 0, sizeof(BHUniforms)};
@@ -731,13 +745,13 @@ void Renderer::recordPass(VkCommandBuffer cb, VkRenderPass rp, VkFramebuffer fb,
     VkRenderPassBeginInfo rpb{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
     rpb.renderPass = rp;
     rpb.framebuffer = fb;
-    rpb.renderArea = {{0, 0}, {w, h}};
+    rpb.renderArea = area;
     rpb.clearValueCount = 1;
     rpb.pClearValues = &clear;
     vkCmdBeginRenderPass(cb, &rpb, VK_SUBPASS_CONTENTS_INLINE);
 
     VkViewport vpt{0.0f, 0.0f, (float)w, (float)h, 0.0f, 1.0f};
-    VkRect2D sc{{0, 0}, {w, h}};
+    VkRect2D sc = area;
     vkCmdSetViewport(cb, 0, 1, &vpt);
     vkCmdSetScissor(cb, 0, 1, &sc);
     vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe);
@@ -931,6 +945,10 @@ void Renderer::resize(int width, int height) {
 
 void Renderer::shutdown() {
     if (device_) vkDeviceWaitIdle(device_);
+    releaseExport();
+    if (accumPipe_) vkDestroyPipeline(device_, accumPipe_, nullptr);
+    if (rpOffscreenLoad_) vkDestroyRenderPass(device_, rpOffscreenLoad_, nullptr);
+    if (rpExport_) vkDestroyRenderPass(device_, rpExport_, nullptr);
 
     destroyOffscreenTargets();
     destroyTarget(dummy_);
@@ -968,4 +986,253 @@ void Renderer::shutdown() {
     if (surface_) vkDestroySurfaceKHR(instance_, surface_, nullptr);
     if (instance_) vkDestroyInstance(instance_, nullptr);
     instance_ = VK_NULL_HANDLE;
+}
+
+// ===========================================================================
+// Offscreen export (4K poster / orbit video). Runs on the render thread
+// between frames. Every submission is waited on, so descriptor sets and the
+// uniform buffer can be rewritten freely. The scene pass is split into
+// horizontal strips so no single GPU submission runs long enough to trip a
+// driver watchdog at 500 ray steps.
+// ===========================================================================
+
+ExportCamera Renderer::currentCamera() {
+    ExportCamera c;
+    c.yaw = displayedYaw_;
+    c.pitch = displayedPitch_;
+    c.zoom = displayedZoom_;
+    c.time = (float)(lastFrameTime_ - startTime_);
+    c.diskTime = (float)diskTime_;
+    return c;
+}
+
+bool Renderer::submitAndWait(VkCommandBuffer cb) {
+    VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    submit.commandBufferCount = 1;
+    submit.pCommandBuffers = &cb;
+    VkResult r = vkQueueSubmit(queue_, 1, &submit, VK_NULL_HANDLE);
+    if (r != VK_SUCCESS) { LOGE("export submit failed %d", r); return false; }
+    r = vkQueueWaitIdle(queue_);
+    if (r != VK_SUCCESS) { LOGE("export wait failed %d", r); return false; }
+    return true;
+}
+
+bool Renderer::ensureExportTargets(uint32_t w, uint32_t h) {
+    if (expScene_.image && expScene_.width == w && expScene_.height == h) return true;
+    releaseExport();
+    if (!rpOffscreenLoad_) {
+        rpOffscreenLoad_ = makeRenderPass(device_, kHdrFormat, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                          VK_ATTACHMENT_LOAD_OP_LOAD,
+                                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+    if (!rpExport_) {
+        rpExport_ = makeRenderPass(device_, swapFormat_, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    }
+    if (!rpOffscreenLoad_ || !rpExport_) return false;
+    uint32_t hw = std::max(1u, w / 2), hh = std::max(1u, h / 2);
+    bool ok = makeTarget(expScene_, w, h, rpOffscreen_) &&
+              makeTarget(expAccum_[0], w, h, rpOffscreen_) &&
+              makeTarget(expAccum_[1], w, h, rpOffscreen_) &&
+              makeTarget(expBloomA_, hw, hh, rpOffscreen_) &&
+              makeTarget(expBloomB_, hw, hh, rpOffscreen_) &&
+              makeTarget(expLdr_, w, h, rpExport_, swapFormat_, VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+    if (!ok) { LOGE("export targets %ux%u failed", w, h); releaseExport(); return false; }
+
+    VkBufferCreateInfo bi{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+    bi.size = (VkDeviceSize)w * h * 4;
+    bi.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    if (vkCreateBuffer(device_, &bi, nullptr, &expReadback_) != VK_SUCCESS) { releaseExport(); return false; }
+    VkMemoryRequirements mr;
+    vkGetBufferMemoryRequirements(device_, expReadback_, &mr);
+    VkPhysicalDeviceMemoryProperties mp;
+    vkGetPhysicalDeviceMemoryProperties(phys_, &mp);
+    int idx = -1;
+    const VkMemoryPropertyFlags want[2] = {
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
+    for (int k = 0; k < 2 && idx < 0; ++k) {
+        for (uint32_t i = 0; i < mp.memoryTypeCount; ++i) {
+            if ((mr.memoryTypeBits & (1u << i)) &&
+                (mp.memoryTypes[i].propertyFlags & want[k]) == want[k]) { idx = (int)i; break; }
+        }
+    }
+    if (idx < 0) { releaseExport(); return false; }
+    expReadbackCoherent_ = (mp.memoryTypes[idx].propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) != 0;
+    VkMemoryAllocateInfo ai{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    ai.allocationSize = mr.size;
+    ai.memoryTypeIndex = (uint32_t)idx;
+    if (vkAllocateMemory(device_, &ai, nullptr, &expReadbackMem_) != VK_SUCCESS) { releaseExport(); return false; }
+    vkBindBufferMemory(device_, expReadback_, expReadbackMem_, 0);
+    vkMapMemory(device_, expReadbackMem_, 0, VK_WHOLE_SIZE, 0, &expReadbackMapped_);
+
+    VkCommandBufferAllocateInfo cbi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+    cbi.commandPool = cmdPool_;
+    cbi.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cbi.commandBufferCount = 1;
+    if (vkAllocateCommandBuffers(device_, &cbi, &expCmd_) != VK_SUCCESS) { releaseExport(); return false; }
+    return true;
+}
+
+void Renderer::releaseExport() {
+    if (!device_) return;
+    vkDeviceWaitIdle(device_);
+    destroyTarget(expScene_);
+    destroyTarget(expAccum_[0]);
+    destroyTarget(expAccum_[1]);
+    destroyTarget(expBloomA_);
+    destroyTarget(expBloomB_);
+    destroyTarget(expLdr_);
+    if (expReadbackMapped_) { vkUnmapMemory(device_, expReadbackMem_); expReadbackMapped_ = nullptr; }
+    if (expReadback_) { vkDestroyBuffer(device_, expReadback_, nullptr); expReadback_ = VK_NULL_HANDLE; }
+    if (expReadbackMem_) { vkFreeMemory(device_, expReadbackMem_, nullptr); expReadbackMem_ = VK_NULL_HANDLE; }
+    if (expCmd_) { vkFreeCommandBuffers(device_, cmdPool_, 1, &expCmd_); expCmd_ = VK_NULL_HANDLE; }
+}
+
+bool Renderer::exportPass(uint32_t w, uint32_t h, const ExportCamera& cam, int raySteps,
+                          int passIndex, int passCount, uint8_t* outRGBA) {
+    if (!device_ || w < 16 || h < 16 || passCount < 1) return false;
+    // Wait for the live frame in flight before touching shared descriptors/UBO.
+    vkWaitForFences(device_, 1, &fence_, VK_TRUE, UINT64_MAX);
+    if (!ensureExportTargets(w, h)) return false;
+
+    InputState s;
+    {
+        std::lock_guard<std::mutex> lk(stateMutex_);
+        s = pending_;
+    }
+    s.bloomEnabled = true;   // exports always get the full post chain
+    BHUniforms u{};
+    u.resolution[0] = (float)w;
+    u.resolution[1] = (float)h;
+    u.time = cam.time;
+    u.mass = s.mass;
+    u.spin = s.spin;
+    u.diskDensity = s.diskDensity;
+    u.diskTemp = s.diskTemp;
+    u.zoom = cam.zoom;
+    u.mouse[0] = cam.yaw;
+    u.mouse[1] = cam.pitch;
+    u.lensingStrength = s.lensingStrength;
+    u.diskSize = s.diskSize;
+    u.maxRaySteps = raySteps;
+    u.enableDoppler = (s.flagsMask >> 2) & 1;
+    u.enableJets = (s.flagsMask >> 5) & 1;
+    u.enableLensing = (s.flagsMask >> 0) & 1;
+    u.enableDisk = (s.flagsMask >> 1) & 1;
+    u.enableStars = (s.flagsMask >> 4) & 1;
+    u.enablePhotonGlow = (s.flagsMask >> 3) & 1;
+    u.enableRedshiftView = (s.flagsMask >> 6) & 1;
+    if (passCount > 1) {
+        u.jitter[0] = haltonAt(passIndex + 1, 2) - 0.5f;
+        u.jitter[1] = haltonAt(passIndex + 1, 3) - 0.5f;
+    }
+    u.diskScaleHeight = s.diskScaleHeight;
+    u.bloomThreshold = s.bloomThreshold;
+    u.bloomIntensity = s.bloomIntensity;
+    u.frameDragStrength = s.frameDragStrength;
+    u.frameIndex = passIndex * 7 + 1;
+    u.diskTime = cam.diskTime;
+    u.taaFeedback = (float)passIndex / (float)(passIndex + 1);
+    std::memcpy(uboMapped_, &u, sizeof(BHUniforms));
+
+    VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    // 1. Scene, in strips of about a megapixel each.
+    VkPipeline scene = scenePipeline(s.flagsMask);
+    uint32_t stripH = std::max(64u, std::min(h, 1000000u / std::max(1u, w)));
+    for (uint32_t y = 0; y < h; y += stripH) {
+        uint32_t rows = std::min(stripH, h - y);
+        vkResetCommandBuffer(expCmd_, 0);
+        vkBeginCommandBuffer(expCmd_, &bi);
+        recordPassArea(expCmd_, y == 0 ? rpOffscreen_ : rpOffscreenLoad_, expScene_.framebuffer,
+                       w, h, VkRect2D{{0, (int32_t)y}, {w, rows}}, scene,
+                       dummy_.view, dummy_.view, 0);
+        vkEndCommandBuffer(expCmd_);
+        if (!submitAndWait(expCmd_)) return false;
+    }
+
+    // 2. Accumulate the running mean.
+    vkResetCommandBuffer(expCmd_, 0);
+    vkBeginCommandBuffer(expCmd_, &bi);
+    if (passIndex == 0) {
+        expAccumIdx_ = 0;
+        recordPass(expCmd_, rpOffscreen_, expAccum_[0].framebuffer, w, h,
+                   copyPipe_, expScene_.view, dummy_.view, 1);
+    } else {
+        RenderTarget& hist = expAccum_[expAccumIdx_];
+        RenderTarget& dst = expAccum_[1 - expAccumIdx_];
+        recordPass(expCmd_, rpOffscreen_, dst.framebuffer, w, h,
+                   accumPipe_, expScene_.view, hist.view, 1);
+        expAccumIdx_ = 1 - expAccumIdx_;
+    }
+    bool last = passIndex >= passCount - 1;
+    if (last) {
+        RenderTarget& resolved = expAccum_[expAccumIdx_];
+        if (s.bloomEnabled) {
+            recordPass(expCmd_, rpOffscreen_, expBloomA_.framebuffer, expBloomA_.width, expBloomA_.height,
+                       brightPipe_, resolved.view, dummy_.view, 2);
+            recordPass(expCmd_, rpOffscreen_, expBloomB_.framebuffer, expBloomB_.width, expBloomB_.height,
+                       blurHPipe_, expBloomA_.view, dummy_.view, 3);
+            recordPass(expCmd_, rpOffscreen_, expBloomA_.framebuffer, expBloomA_.width, expBloomA_.height,
+                       blurVPipe_, expBloomB_.view, dummy_.view, 4);
+        }
+        recordPass(expCmd_, rpExport_, expLdr_.framebuffer, w, h, compositePipe_,
+                   resolved.view, s.bloomEnabled ? expBloomA_.view : expScene_.view, 5);
+
+        VkImageMemoryBarrier ib{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        ib.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        ib.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        ib.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        ib.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        ib.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        ib.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        ib.image = expLdr_.image;
+        ib.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        vkCmdPipelineBarrier(expCmd_, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &ib);
+        VkBufferImageCopy region{};
+        region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+        region.imageExtent = {w, h, 1};
+        vkCmdCopyImageToBuffer(expCmd_, expLdr_.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                               expReadback_, 1, &region);
+        VkBufferMemoryBarrier bb{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
+        bb.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        bb.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+        bb.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bb.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bb.buffer = expReadback_;
+        bb.size = VK_WHOLE_SIZE;
+        vkCmdPipelineBarrier(expCmd_, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+                             0, 0, nullptr, 1, &bb, 0, nullptr);
+    }
+    vkEndCommandBuffer(expCmd_);
+    if (!submitAndWait(expCmd_)) return false;
+
+    if (last && outRGBA) {
+        if (!expReadbackCoherent_) {
+            VkMappedMemoryRange range{VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};
+            range.memory = expReadbackMem_;
+            range.size = VK_WHOLE_SIZE;
+            vkInvalidateMappedMemoryRanges(device_, 1, &range);
+        }
+        const uint8_t* src = (const uint8_t*)expReadbackMapped_;
+        size_t n = (size_t)w * h;
+        if (swapFormat_ == VK_FORMAT_B8G8R8A8_UNORM) {
+            for (size_t i = 0; i < n; ++i) {
+                outRGBA[i * 4 + 0] = src[i * 4 + 2];
+                outRGBA[i * 4 + 1] = src[i * 4 + 1];
+                outRGBA[i * 4 + 2] = src[i * 4 + 0];
+                outRGBA[i * 4 + 3] = 255;
+            }
+        } else {
+            std::memcpy(outRGBA, src, n * 4);
+            for (size_t i = 0; i < n; ++i) outRGBA[i * 4 + 3] = 255;
+        }
+    }
+    // The live TAA history shares nothing with export, but the next live
+    // frame must not blend against a stale history after a long pause.
+    historyValid_ = false;
+    return true;
 }

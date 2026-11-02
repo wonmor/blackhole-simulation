@@ -30,7 +30,7 @@ import com.android.billingclient.api.QueryPurchasesParams
  * cached so Pro works offline; Play remains the source of truth and is
  * re-queried on every launch and resume.
  */
-class ProManager(context: Context) : PurchasesUpdatedListener {
+class ProManager(private val context: Context) : PurchasesUpdatedListener {
 
     companion object {
         const val SUB_ID = "blackhole_pro"
@@ -38,6 +38,12 @@ class ProManager(context: Context) : PurchasesUpdatedListener {
         const val PLAN_MONTHLY = "monthly"
         const val PLAN_YEARLY = "yearly"
         private const val PREF_KEY = "pro_cached"
+        private const val PREF_HAD_SUB = "had_sub"
+        /** Cross-process Pro flag read by the live wallpaper (separate process). */
+        const val PRO_FLAG_FILE = "pro.flag"
+
+        fun proFlag(context: Context): Boolean =
+            java.io.File(context.filesDir, PRO_FLAG_FILE).exists()
     }
 
     private val prefs = context.getSharedPreferences("bh.billing", Context.MODE_PRIVATE)
@@ -67,6 +73,16 @@ class ProManager(context: Context) : PurchasesUpdatedListener {
         paywallHeadline = "Enjoying the view?"
         showPaywall = true
     }
+
+    /** Shown once at the end of onboarding. Always dismissible. */
+    fun openPaywallAfterOnboarding() {
+        paywallReason = null
+        paywallHeadline = "Unlock the whole universe"
+        showPaywall = true
+    }
+
+    /** Subscribed on this device before but not Pro now (expired or cancelled). */
+    val lapsed: Boolean get() = !isPro && prefs.getBoolean(PREF_HAD_SUB, false)
 
     private val client: BillingClient = BillingClient.newBuilder(context.applicationContext)
         .setListener(this)
@@ -155,6 +171,7 @@ class ProManager(context: Context) : PurchasesUpdatedListener {
     private fun handle(p: Purchase): Boolean {
         val ours = p.products.any { it == SUB_ID || it == LIFETIME_ID }
         if (!ours || p.purchaseState != Purchase.PurchaseState.PURCHASED) return false
+        if (p.products.contains(SUB_ID)) prefs.edit().putBoolean(PREF_HAD_SUB, true).apply()
         if (!p.isAcknowledged) {
             client.acknowledgePurchase(
                 AcknowledgePurchaseParams.newBuilder().setPurchaseToken(p.purchaseToken).build()
@@ -173,9 +190,22 @@ class ProManager(context: Context) : PurchasesUpdatedListener {
 
     private fun updatePro(v: Boolean) {
         debugOverride?.let { isPro = it; return }
+        val wasPro = isPro
         isPro = v
         prefs.edit().putBoolean(PREF_KEY, v).apply()
+        writeProFlag(v)
         if (v) showPaywall = false
+        if (v && !wasPro) justUnlocked = true
+    }
+
+    /** True right after a purchase or restore unlocked Pro (for a thank-you moment). */
+    var justUnlocked by mutableStateOf(false)
+
+    private fun writeProFlag(v: Boolean) {
+        runCatching {
+            val f = java.io.File(context.filesDir, PRO_FLAG_FILE)
+            if (v) f.writeText("1") else f.delete()
+        }
     }
 
     override fun onPurchasesUpdated(result: BillingResult, purchases: MutableList<Purchase>?) {
@@ -197,46 +227,82 @@ class ProManager(context: Context) : PurchasesUpdatedListener {
     // ---- plans ----
 
     data class Plan(
-        val key: String,            // "yearly" | "monthly" | "lifetime"
+        val key: String,            // "lifetime" | "yearly"
         val title: String,
-        val price: String,          // recurring or one-time price
-        val per: String,            // "per year" | "per month" | "once"
+        val price: String,          // price charged now (lifetime) or the recurring price
+        val per: String,            // "once" | "per year"
         val trialDays: Int,         // 0 = no trial offered to this account
         val priceMicros: Long,
         val offerToken: String?,
-        val details: ProductDetails
+        val details: ProductDetails,
+        /** Subscription: discounted first-period price, e.g. "$11.99". */
+        val introPrice: String? = null,
+        /** Full terms, e.g. "1 week free, then $11.99 for the first year, then $17.99 per year". */
+        val terms: String? = null,
+        /** Lifetime sale: the regular price to strike through. */
+        val fullPrice: String? = null,
+        val percentOff: Int? = null,
+        val saleEndsMillis: Long? = null,
+        val winback: Boolean = false,
+        /** "about $1.50 a month" (yearly only). */
+        val perMonth: String? = null
     )
 
     /**
-     * Plans shown on the paywall, lifetime first (the main offer), then yearly
-     * with its trial. The monthly base plan stays active on Play so existing
-     * subscribers keep it, but it is no longer offered here.
+     * Plans shown on the paywall, lifetime first (the main offer), then
+     * yearly with its best eligible offer. The monthly base plan stays active
+     * on Play for existing subscribers but is not offered here.
      */
     fun plans(): List<Plan> {
         val out = mutableListOf<Plan>()
-        lifetimeDetails?.let { d ->
-            d.oneTimePurchaseOfferDetails?.let { o ->
-                out += Plan("lifetime", "Lifetime", o.formattedPrice, "once", 0, o.priceAmountMicros, null, d)
-            }
-        }
+        lifetimeDetails?.let { d -> lifetimePlan(d)?.let { out += it } }
         subDetails?.let { d ->
-            val plan = PLAN_YEARLY
-            val offers = d.subscriptionOfferDetails.orEmpty().filter { it.basePlanId == plan }
-            if (offers.isNotEmpty()) {
-                // Play only returns offers this user is eligible for; prefer one
-                // with a free phase (the trial), else the base plan itself.
-                val trial = offers.firstOrNull { o ->
-                    o.offerId != null && o.pricingPhases.pricingPhaseList.any { it.priceAmountMicros == 0L }
-                }
-                val chosen = trial ?: offers.firstOrNull { it.offerId == null } ?: offers.first()
-                val recurring = chosen.pricingPhases.pricingPhaseList.last()
-                val free = chosen.pricingPhases.pricingPhaseList.firstOrNull { it.priceAmountMicros == 0L }
-                out += Plan(plan, "Yearly", recurring.formattedPrice, "per year",
-                    free?.let { isoDays(it.billingPeriod) } ?: 0,
-                    recurring.priceAmountMicros, chosen.offerToken, d)
+            val offers = d.subscriptionOfferDetails.orEmpty().filter { it.basePlanId == PLAN_YEARLY }
+            val infos = offers.map { o ->
+                OfferInfo(o.offerId, o.offerTags, o.pricingPhases.pricingPhaseList.map { ph ->
+                    PhaseInfo(ph.priceAmountMicros, ph.formattedPrice, ph.billingPeriod, ph.billingCycleCount,
+                        ph.recurrenceMode != ProductDetails.RecurrenceMode.INFINITE_RECURRING)
+                }, o.offerToken)
             }
+            val chosen = OfferMath.choose(infos, lapsed) ?: return@let
+            val rec = OfferMath.recurring(chosen)
+            val intro = OfferMath.introPhase(chosen)
+            val code = d.subscriptionOfferDetails.orEmpty().firstOrNull()
+                ?.pricingPhases?.pricingPhaseList?.lastOrNull()?.priceCurrencyCode
+            val perMonth = code?.let { c ->
+                runCatching {
+                    val nf = java.text.NumberFormat.getCurrencyInstance()
+                    nf.currency = java.util.Currency.getInstance(c)
+                    val m = nf.format(((intro ?: rec).priceMicros / 12) / 1_000_000.0)
+                    if (intro != null) "about $m a month in the first year" else "about $m a month"
+                }.getOrNull()
+            }
+            out += Plan(PLAN_YEARLY, "Yearly", rec.formatted, "per year",
+                OfferMath.freeDays(chosen), rec.priceMicros, chosen.token, d,
+                introPrice = OfferMath.introPhase(chosen)?.formatted,
+                terms = OfferMath.describe(chosen),
+                winback = OfferMath.isWinback(chosen),
+                perMonth = perMonth)
         }
         return out
+    }
+
+    private fun lifetimePlan(d: ProductDetails): Plan? {
+        val list = d.oneTimePurchaseOfferDetailsList.orEmpty()
+        val base = list.firstOrNull { it.offerId == null } ?: d.oneTimePurchaseOfferDetails ?: list.firstOrNull()
+        val best = list.minByOrNull { it.priceAmountMicros } ?: base ?: return null
+        val now = System.currentTimeMillis()
+        val window = best.validTimeWindow
+        val live = window == null ||
+            ((window.startTimeMillis ?: 0L) <= now && (window.endTimeMillis ?: Long.MAX_VALUE) > now)
+        val o = if (live) best else (base ?: best)
+        val onSale = base != null && o.priceAmountMicros < base.priceAmountMicros
+        return Plan("lifetime", "Lifetime", o.formattedPrice, "once", 0, o.priceAmountMicros,
+            o.offerToken, d,
+            fullPrice = if (onSale) base!!.formattedPrice else null,
+            percentOff = if (onSale) (o.discountDisplayInfo?.percentageDiscount
+                ?: (100 - (o.priceAmountMicros * 100 / base!!.priceAmountMicros)).toInt()) else null,
+            saleEndsMillis = if (onSale) o.validTimeWindow?.endTimeMillis else null)
     }
 
     fun buy(activity: Activity, plan: Plan) {
@@ -249,12 +315,5 @@ class ProManager(context: Context) : PurchasesUpdatedListener {
             busy = false
             message = "Google Play couldn't start the purchase (${r.debugMessage.ifBlank { "code ${r.responseCode}" }})."
         }
-    }
-
-    private fun isoDays(p: String): Int {
-        // P1W, P7D, P3D, P1M
-        val m = Regex("P(\\d+)([DWMY])").find(p) ?: return 7
-        val n = m.groupValues[1].toInt()
-        return when (m.groupValues[2]) { "D" -> n; "W" -> n * 7; "M" -> n * 30; else -> n * 365 }
     }
 }

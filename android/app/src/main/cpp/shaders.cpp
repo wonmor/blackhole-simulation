@@ -28,6 +28,9 @@ const uint32_t k_composite_frag[] =
 const uint32_t k_copy_frag[] =
 #include "copy.frag.inc"
 ;
+const uint32_t k_accum_frag[] =
+#include "accum.frag.inc"
+;
 
 struct Entry { const char* name; const uint32_t* data; size_t bytes; };
 const Entry kTable[] = {
@@ -39,6 +42,7 @@ const Entry kTable[] = {
     {"blur.frag",      k_blur_frag,      sizeof(k_blur_frag)},
     {"composite.frag", k_composite_frag, sizeof(k_composite_frag)},
     {"copy.frag",      k_copy_frag,      sizeof(k_copy_frag)},
+    {"accum.frag",     k_accum_frag,     sizeof(k_accum_frag)},
 };
 }  // namespace
 

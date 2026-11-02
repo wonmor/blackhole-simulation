@@ -107,6 +107,18 @@ class SimState(context: Context) {
         pushCamera()
     }
 
+    /** Reset every parameter to factory defaults (the iOS reset button). */
+    fun resetToDefaults(allowPro: Boolean) {
+        mass = 1.0f; spin = 0.5f; lensingStrength = 0.7f; frameDragStrength = 2.0f
+        diskDensity = 4.0f; diskTemp = 9500.0f; diskSize = 50.0f; diskScaleHeight = 0.2f; diskSpeed = 1.0f
+        zoom = 100.0f; yaw = 0.5f; pitch = 0.539f; autoSpin = 0.005f
+        bloomThreshold = 1.0f; bloomIntensity = 0.45f
+        enableLensing = true; enableDisk = true; enableStars = true; enablePhotonGlow = true
+        enableDoppler = true; enableJets = false; showRedshift = false
+        clampPreset(allowPro)
+        pushParams(); pushCamera()
+    }
+
     fun selectPreset(p: QualityPreset) {
         preset = p
         prefs.edit().putString("preset", p.name).apply()

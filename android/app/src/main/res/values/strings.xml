@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">BlackHole</string>
+    <string name="wallpaper_name">BlackHole live wallpaper</string>
+    <string name="wallpaper_description">A ray-traced Kerr black hole on your home screen. It uses the look you set in the BlackHole app. Live motion is part of BlackHole Pro.</string>
 </resources>

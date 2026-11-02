@@ -11,7 +11,13 @@
         android:version="0"
         android:required="false" />
 
+    <uses-feature
+        android:name="android.software.live_wallpaper"
+        android:required="false" />
+
     <uses-permission android:name="com.android.vending.BILLING" />
+    <!-- Focus timer: end-of-session notifications (asked for on first Start). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Snapshot saving on Android 8/9 only; 10+ uses MediaStore without it. -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
@@ -37,5 +43,24 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Live wallpaper (Pro). Separate process: its own native renderer. -->
+        <service
+            android:name=".wallpaper.BlackHoleWallpaperService"
+            android:exported="true"
+            android:label="@string/wallpaper_name"
+            android:permission="android.permission.BIND_WALLPAPER"
+            android:process=":wallpaper">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/wallpaper" />
+        </service>
+
+        <receiver
+            android:name=".focus.FocusAlarmReceiver"
+            android:exported="false" />
     </application>
 </manifest>
