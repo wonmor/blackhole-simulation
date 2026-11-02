@@ -79,6 +79,7 @@
 		F769C40909B59841EEFFF714 /* PaywallSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94971C7B80C0B86890A7A823 /* PaywallSheet.swift */; };
 		F82548E56AC34B875E8790B9 /* Gravitas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 228A3247AF1FD5E3C0B7DF90 /* Gravitas.swift */; };
 		FDEC3E7865D1BB5CB3B5AB7B /* Scenarios.swift in Sources */ = {isa = PBXBuildFile; fileRef = 385F1F323863C33A518CFC90 /* Scenarios.swift */; };
+		FF44E735E32E0EC26D2F4EFC /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 35D4260BF960E766B539A7B6 /* AppIcon.icon */; };
 		FF4B75BF7BF4EE823CF370B5 /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFFE7DD2F5FD94877794B512 /* Renderer.swift */; };
 /* End PBXBuildFile section */
 
@@ -97,6 +98,7 @@
 		29BEC6B796F2572E687DEA19 /* ImmersiveRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersiveRenderer.swift; sourceTree = "<group>"; };
 		3026567985814163C7FA34BF /* PomodoroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PomodoroView.swift; sourceTree = "<group>"; };
 		306AD48EBE39A6818CEF828F /* WallpaperOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperOverlay.swift; sourceTree = "<group>"; };
+		35D4260BF960E766B539A7B6 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		385F1F323863C33A518CFC90 /* Scenarios.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scenarios.swift; sourceTree = "<group>"; };
 		414ED71E960453A3B70A5632 /* AppController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppController.swift; sourceTree = "<group>"; };
 		49056B6B1E84C0ACFEF922E7 /* ExportStudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportStudio.swift; sourceTree = "<group>"; };
@@ -234,6 +236,7 @@
 			isa = PBXGroup;
 			children = (
 				414ED71E960453A3B70A5632 /* AppController.swift */,
+				35D4260BF960E766B539A7B6 /* AppIcon.icon */,
 				8AAD919A090B51F89F413EA0 /* Assets.xcassets */,
 				E2016702F3956BE72425A269 /* BlackHole-macOS.entitlements */,
 				F16D1EB074E9B91906908442 /* Info.plist */,
@@ -352,6 +355,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FF44E735E32E0EC26D2F4EFC /* AppIcon.icon in Resources */,
 				4B958B2B76DBD2133B376987 /* Assets.xcassets in Resources */,
 				55D87B9B9092B7875FB78175 /* Assets.xcassets in Resources */,
 				0F6B02087E9DD6DEB615BB74 /* PrivacyInfo.xcprivacy in Resources */,
