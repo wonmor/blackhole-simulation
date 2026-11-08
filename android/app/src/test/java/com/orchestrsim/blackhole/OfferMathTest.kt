@@ -37,6 +37,20 @@ class OfferMathTest {
         assertNull(OfferMath.introPhase(trial))
     }
 
+    // Monthly base plan as configured on Play: base $4.99/month + "monthly-trial" (1 week free).
+    private val mFull = PhaseInfo(4_990_000, "$4.99", "P1M", 0, false)
+    private val mBase = OfferInfo(null, emptyList(), listOf(mFull), "m-base")
+    private val mTrial = OfferInfo("monthly-trial", emptyList(), listOf(free, mFull), "m-trial")
+
+    @Test fun monthlyPlanPicksTrialWhenEligible() {
+        assertEquals("m-trial", OfferMath.choose(listOf(mBase, mTrial), lapsed = false)!!.token)
+        // Play omits offers the account isn't eligible for: base plan alone still yields a plan.
+        assertEquals("m-base", OfferMath.choose(listOf(mBase), lapsed = true)!!.token)
+        assertEquals("1 week free, then $4.99 per month", OfferMath.describe(mTrial))
+        assertEquals("$4.99 per month", OfferMath.describe(mBase))
+        assertEquals(7, OfferMath.freeDays(mTrial))
+    }
+
     @Test fun durations() {
         assertEquals("1 week", OfferMath.durationText("P7D"))
         assertEquals("3 days", OfferMath.durationText("P3D"))

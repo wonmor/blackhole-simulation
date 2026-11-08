@@ -289,7 +289,8 @@ class ProManager(private val context: Context) : PurchasesUpdatedListener {
         busy = false
         when (result.responseCode) {
             BillingClient.BillingResponseCode.OK -> {
-                val granted = purchases.orEmpty().any { handle(it) }
+                // handle() every purchase (acknowledges each); any{} would stop at the first.
+                val granted = purchases.orEmpty().map { handle(it) }.any { it }
                 if (granted) updatePro(true)
                 else if (purchases.orEmpty().any { it.purchaseState == Purchase.PurchaseState.PENDING }) {
                     message = "Your purchase is pending. Pro unlocks as soon as Google Play confirms the payment."
@@ -304,7 +305,7 @@ class ProManager(private val context: Context) : PurchasesUpdatedListener {
     // ---- plans ----
 
     data class Plan(
-        val key: String,            // "lifetime" | "yearly"
+        val key: String,            // "lifetime" | "yearly" | "monthly"
         val title: String,
         val price: String,          // price charged now (lifetime) or the recurring price
         val per: String,            // "once" | "per year"

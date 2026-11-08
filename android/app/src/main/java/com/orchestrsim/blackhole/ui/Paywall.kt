@@ -182,8 +182,8 @@ private fun ctaTitle(p: ProManager.Plan?): String = when {
 
 private fun finePrint(p: ProManager.Plan): String = when {
     p.key == "lifetime" -> "Pay once. Pro forever, no renewals."
-    p.trialDays > 0 -> "${(p.terms ?: "${trialLabel(p.trialDays)} free, then ${p.price} per year").replaceFirstChar { it.uppercase() }}, until you cancel. Cancel before the trial ends and you won't be charged."
-    else -> "${(p.terms ?: "${p.price} per year").replaceFirstChar { it.uppercase() }}, until you cancel."
+    p.trialDays > 0 -> "${(p.terms ?: "${trialLabel(p.trialDays)} free, then ${p.price} ${p.per}").replaceFirstChar { it.uppercase() }}, until you cancel. Cancel before the trial ends and you won't be charged."
+    else -> "${(p.terms ?: "${p.price} ${p.per}").replaceFirstChar { it.uppercase() }}, until you cancel."
 }
 
 @Composable
@@ -205,7 +205,8 @@ private fun PlanRow(p: ProManager.Plan, isSel: Boolean, onClick: () -> Unit) {
         p.key == "lifetime" -> "BEST VALUE" to Accent
         p.trialDays > 0 -> "${trialLabel(p.trialDays).uppercase()} FREE" to Accent
         p.winback -> "WELCOME BACK" to Accent
-        p.introPrice != null -> "FIRST YEAR ${p.introPrice}" to Accent
+        p.introPrice != null && p.key == "yearly" -> "FIRST YEAR ${p.introPrice}" to Accent
+        p.introPrice != null -> "INTRO ${p.introPrice}" to Accent
         else -> null
     }
     val sub = when {
