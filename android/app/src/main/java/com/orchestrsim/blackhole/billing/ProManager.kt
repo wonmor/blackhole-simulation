@@ -52,6 +52,8 @@ class ProManager(private val context: Context) : PurchasesUpdatedListener {
     var subDetails by mutableStateOf<ProductDetails?>(null); private set
     var lifetimeDetails by mutableStateOf<ProductDetails?>(null); private set
     var loading by mutableStateOf(true); private set
+    /** Why plans could not be loaded (Play code / timeout); null while fine. */
+    var loadError by mutableStateOf<String?>(null); private set
     var busy by mutableStateOf(false); private set
     var message by mutableStateOf<String?>(null)
 
@@ -84,59 +86,134 @@ class ProManager(private val context: Context) : PurchasesUpdatedListener {
     /** Subscribed on this device before but not Pro now (expired or cancelled). */
     val lapsed: Boolean get() = !isPro && prefs.getBoolean(PREF_HAD_SUB, false)
 
-    private val client: BillingClient = BillingClient.newBuilder(context.applicationContext)
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private val appContext = context.applicationContext
+    private var client: BillingClient = newClient()
+    private var connecting = false
+    private var generation = 0
+
+    private fun newClient(): BillingClient = BillingClient.newBuilder(appContext)
         .setListener(this)
         .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
         .enableAutoServiceReconnection()
         .build()
 
+    /**
+     * Connect if needed, then load plans + purchases. Bounded: [loading] never
+     * stays true longer than the connect (15 s) + query (20 s) timeouts.
+     */
     fun start() {
-        if (client.isReady) { refresh(); return }
-        client.startConnection(object : BillingClientStateListener {
-            override fun onBillingSetupFinished(result: BillingResult) {
-                if (result.responseCode == BillingClient.BillingResponseCode.OK) {
-                    refresh()
-                } else {
-                    loading = false
-                }
+        main.post {
+            if (client.isReady) { refreshNow(); return@post }
+            if (connecting) return@post
+            connecting = true
+            if (subDetails == null && lifetimeDetails == null) loading = true
+            loadError = null
+            val gen = ++generation
+            try {
+                client.startConnection(object : BillingClientStateListener {
+                    override fun onBillingSetupFinished(result: BillingResult) {
+                        main.post {
+                            if (gen != generation) return@post
+                            connecting = false; generation++
+                            android.util.Log.i("BHBilling", "setup ${result.responseCode} ${result.debugMessage}")
+                            if (result.responseCode == BillingClient.BillingResponseCode.OK) refreshNow()
+                            else fail("Google Play billing unavailable (code ${result.responseCode}).")
+                        }
+                    }
+                    override fun onBillingServiceDisconnected() {
+                        main.post {
+                            android.util.Log.w("BHBilling", "disconnected (connecting=$connecting)")
+                            if (connecting && gen == generation) {
+                                connecting = false; generation++
+                                fail("Lost the connection to Google Play.")
+                            }
+                        }
+                    }
+                })
+            } catch (e: Exception) {
+                connecting = false
+                client = newClient()
+                fail("Google Play billing unavailable (${e.message}).")
+                return@post
             }
-            override fun onBillingServiceDisconnected() { /* auto-reconnect enabled */ }
-        })
+            main.postDelayed({
+                if (connecting && gen == generation) {
+                    connecting = false; generation++
+                    runCatching { client.endConnection() }
+                    client = newClient()
+                    fail("Google Play did not respond.")
+                }
+            }, 15_000L)
+        }
+    }
+
+    private fun fail(why: String) {
+        android.util.Log.w("BHBilling", why)
+        loading = false
+        busy = false
+        if (subDetails == null && lifetimeDetails == null) loadError = why
     }
 
     fun end() { client.endConnection() }
 
-    /** Re-query products and purchases. */
-    fun refresh() {
+    /** Re-query products and purchases (reconnects when needed). The paywall calls this on open. */
+    fun refresh() = start()
+
+    private fun refreshNow() {
         loadProducts()
         queryPurchases(userInitiated = false)
     }
 
     private fun loadProducts() {
-        loading = true
+        if (subDetails == null && lifetimeDetails == null) loading = true
+        loadError = null
+        var answered = 0
+        var lastCode = 0
+        val gen = generation
+        val done = { code: Int ->
+            answered += 1
+            if (code != BillingClient.BillingResponseCode.OK) lastCode = code
+            if (answered == 2) {
+                loading = false
+                loadError = if (subDetails == null && lifetimeDetails == null)
+                    "No plans returned by Google Play (code $lastCode)." else null
+            }
+        }
         val subs = QueryProductDetailsParams.newBuilder().setProductList(listOf(
             QueryProductDetailsParams.Product.newBuilder()
                 .setProductId(SUB_ID).setProductType(BillingClient.ProductType.SUBS).build()
         )).build()
         client.queryProductDetailsAsync(subs) { r, res ->
-            if (r.responseCode == BillingClient.BillingResponseCode.OK) {
-                subDetails = res.productDetailsList.firstOrNull()
+            main.post {
+                if (r.responseCode == BillingClient.BillingResponseCode.OK) {
+                    res.productDetailsList.firstOrNull()?.let { subDetails = it }
+                }
+                done(r.responseCode)
             }
-            loading = false
         }
         val inapp = QueryProductDetailsParams.newBuilder().setProductList(listOf(
             QueryProductDetailsParams.Product.newBuilder()
                 .setProductId(LIFETIME_ID).setProductType(BillingClient.ProductType.INAPP).build()
         )).build()
         client.queryProductDetailsAsync(inapp) { r, res ->
-            if (r.responseCode == BillingClient.BillingResponseCode.OK) {
-                lifetimeDetails = res.productDetailsList.firstOrNull()
+            main.post {
+                if (r.responseCode == BillingClient.BillingResponseCode.OK) {
+                    res.productDetailsList.firstOrNull()?.let { lifetimeDetails = it }
+                }
+                done(r.responseCode)
             }
         }
+        main.postDelayed({
+            if (gen == generation && answered < 2 && loading) fail("Google Play did not return prices in time.")
+        }, 20_000L)
     }
 
     /** Restore = re-read owned purchases from Play. */
-    fun restore() = queryPurchases(userInitiated = true)
+    fun restore() {
+        if (!client.isReady) { message = "Could not reach Google Play. Try again."; start(); return }
+        queryPurchases(userInitiated = true)
+    }
 
     private fun queryPurchases(userInitiated: Boolean) {
         if (userInitiated) busy = true
@@ -250,8 +327,7 @@ class ProManager(private val context: Context) : PurchasesUpdatedListener {
 
     /**
      * Plans shown on the paywall, lifetime first (the main offer), then
-     * yearly with its best eligible offer. The monthly base plan stays active
-     * on Play for existing subscribers but is not offered here.
+     * yearly and monthly, each with its best eligible offer.
      */
     fun plans(): List<Plan> {
         val out = mutableListOf<Plan>()
@@ -264,7 +340,7 @@ class ProManager(private val context: Context) : PurchasesUpdatedListener {
                         ph.recurrenceMode != ProductDetails.RecurrenceMode.INFINITE_RECURRING)
                 }, o.offerToken)
             }
-            val chosen = OfferMath.choose(infos, lapsed) ?: return@let
+            OfferMath.choose(infos, lapsed)?.let { chosen ->
             val rec = OfferMath.recurring(chosen)
             val intro = OfferMath.introPhase(chosen)
             val code = d.subscriptionOfferDetails.orEmpty().firstOrNull()
@@ -283,6 +359,23 @@ class ProManager(private val context: Context) : PurchasesUpdatedListener {
                 terms = OfferMath.describe(chosen),
                 winback = OfferMath.isWinback(chosen),
                 perMonth = perMonth)
+            }
+            // Monthly: base plan plus its best eligible offer (e.g. monthly-trial).
+            val mOffers = d.subscriptionOfferDetails.orEmpty().filter { it.basePlanId == PLAN_MONTHLY }
+            val mInfos = mOffers.map { o ->
+                OfferInfo(o.offerId, o.offerTags, o.pricingPhases.pricingPhaseList.map { ph ->
+                    PhaseInfo(ph.priceAmountMicros, ph.formattedPrice, ph.billingPeriod, ph.billingCycleCount,
+                        ph.recurrenceMode != ProductDetails.RecurrenceMode.INFINITE_RECURRING)
+                }, o.offerToken)
+            }
+            OfferMath.choose(mInfos, lapsed)?.let { m ->
+                val mRec = OfferMath.recurring(m)
+                out += Plan(PLAN_MONTHLY, "Monthly", mRec.formatted, "per month",
+                    OfferMath.freeDays(m), mRec.priceMicros, m.token, d,
+                    introPrice = OfferMath.introPhase(m)?.formatted,
+                    terms = OfferMath.describe(m),
+                    winback = OfferMath.isWinback(m))
+            }
         }
         return out
     }

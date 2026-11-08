@@ -51,6 +51,9 @@ fun Paywall(pro: ProManager, onClose: () -> Unit) {
     var selected by remember { mutableStateOf("lifetime") }
     val chosen = plans.firstOrNull { it.key == selected } ?: plans.firstOrNull()
     val screenH = LocalConfiguration.current.screenHeightDp
+    // Re-query Play every time the paywall opens, so an earlier failed or
+    // stalled load recovers without restarting the app.
+    LaunchedEffect(Unit) { pro.refresh() }
 
     fun open(url: String) = runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
 
@@ -106,6 +109,9 @@ fun Paywall(pro: ProManager, onClose: () -> Unit) {
                             Text("Prices could not be loaded.", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
                             TextButton(onClick = { pro.refresh() }) { Text("Try again", color = Accent) }
                         }
+                    }
+                    if (!pro.loading) pro.loadError?.let {
+                        Text(it, color = Color.White.copy(alpha = 0.45f), fontSize = 11.sp)
                     }
                 }
                 plans.forEach { p -> PlanRow(p, chosen?.key == p.key) { tick(); selected = p.key } }
