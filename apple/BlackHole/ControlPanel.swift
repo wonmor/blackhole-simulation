@@ -41,7 +41,8 @@ struct ControlPanel: View {
         // window (the cause of the clipped / overlapped text in review).
         ViewThatFits(in: .vertical) {
             panelContent
-            ScrollView(.vertical, showsIndicators: false) { panelContent }
+            ScrollView(.vertical, showsIndicators: true) { panelContent }
+                .scrollFadeMask()
         }
         .padding(14)
         .frame(width: 290)

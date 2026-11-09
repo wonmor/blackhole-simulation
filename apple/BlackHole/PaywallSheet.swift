@@ -13,6 +13,7 @@ import StoreKit
 struct PaywallSheet: View {
     @ObservedObject var subscription: SubscriptionManager
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.sheetMaxHeight) private var sheetMaxHeight
     @State private var selectedID: String = SubscriptionManager.lifetimeID
 
     private let cyan = Color(red: 0.55, green: 0.95, blue: 1.0)
@@ -22,8 +23,8 @@ struct PaywallSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
-                    features
                     plans
+                    features
                 }
                 .padding(.horizontal, 22)
                 .padding(.top, 20)
@@ -36,7 +37,7 @@ struct PaywallSheet: View {
                 .background(Color.black.opacity(0.6))
         }
         #if os(macOS)
-        .frame(width: 520, height: 720)
+        .frame(width: 520, height: min(720, sheetMaxHeight))
         #endif
         .background(Color.black.opacity(0.94))
         .colorScheme(.dark)

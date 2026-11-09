@@ -7,6 +7,8 @@ struct ContentView: View {
     @ObservedObject var ui: UIState
 
     @State private var wallpaperToast: String? = nil
+    /// Window content height; sheets cap their height to it on macOS.
+    @State private var windowHeight: CGFloat = 800
 
     #if os(macOS)
     @EnvironmentObject private var controller: AppController
@@ -103,6 +105,11 @@ struct ContentView: View {
             }
         }
         .background(Color.black)
+        .background(GeometryReader { g in
+            Color.clear
+                .onAppear { windowHeight = g.size.height }
+                .onChange(of: g.size.height) { _, h in windowHeight = h }
+        })
         .sheet(isPresented: $ui.showPomodoro) {
             PomodoroView(timer: pomodoro)
                 .padding(.horizontal, 8)
@@ -154,11 +161,11 @@ struct ContentView: View {
             Text(wallpaperToast ?? "")
         })
         .onChange(of: scenePhase) { _, phase in
-            hostFocused = (phase == .active)
+            hostFocused = (phase == .active) || ScreenshotMode.isOn
         }
         #if os(macOS)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
-            hostFocused = false
+            hostFocused = ScreenshotMode.isOn
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             hostFocused = true
@@ -169,6 +176,7 @@ struct ContentView: View {
             controller.openMainWindow = { openWindow(id: "main") }
         }
         #endif
+        .environment(\.sheetMaxHeight, max(360, windowHeight - 56))
     }
 
     @ViewBuilder
@@ -391,16 +399,11 @@ struct ContentView: View {
 private struct FooterView: View {
     var body: some View {
         VStack(spacing: 2) {
+            // Open-source acknowledgements (MIT notice) live in About.
             Text("DEVELOPED BY JOHN SEONG AT ORCH AEROSPACE, INC.")
                 .font(.system(size: 9, weight: .semibold, design: .rounded))
                 .tracking(2.0)
                 .foregroundColor(.white.opacity(0.55))
-            #if !os(iOS)
-            // iOS keeps the upstream credit and MIT notice in About.
-            Text("Fork of project by Mayank Pratap Singh")
-                .font(.system(size: 9, weight: .regular, design: .rounded))
-                .foregroundColor(.white.opacity(0.30))
-            #endif
         }
         .lineLimit(1)
         .minimumScaleFactor(0.7)

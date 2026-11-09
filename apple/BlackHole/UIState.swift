@@ -41,7 +41,36 @@ enum AppLinks {
     static let termsOfUse = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
     /// Dedicated BlackHole privacy policy (GitHub Pages render of PRIVACY.md).
     static let privacyPolicy = URL(string: "https://wonmor.github.io/blackhole-simulation/privacy")!
-    static let support = URL(string: "https://github.com/wonmor/blackhole-simulation")!
-    static let physicsNotes = URL(string: "https://github.com/wonmor/blackhole-simulation/blob/main/docs/PHYSICS.md")!
+    static let support = URL(string: "https://wonmor.github.io/blackhole-simulation/support/")!
+    static let physicsNotes = URL(string: "https://wonmor.github.io/blackhole-simulation/physics/")!
     static let manageSubscriptions = URL(string: "https://apps.apple.com/account/subscriptions")!
+}
+
+import SwiftUI
+
+private struct SheetMaxHeightKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 10_000
+}
+
+extension EnvironmentValues {
+    /// Tallest a sheet may be (macOS: the host window's content height minus
+    /// a margin). Sheets scroll inside this instead of being cut off.
+    var sheetMaxHeight: CGFloat {
+        get { self[SheetMaxHeightKey.self] }
+        set { self[SheetMaxHeightKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Fades the bottom edge of a scrolling panel so clipped content reads as
+    /// "scroll for more" rather than as text cut off by the window.
+    func scrollFadeMask() -> some View {
+        mask(
+            VStack(spacing: 0) {
+                Color.black
+                LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 22)
+            }
+        )
+    }
 }

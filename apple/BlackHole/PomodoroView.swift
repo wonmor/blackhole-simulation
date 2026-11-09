@@ -8,22 +8,25 @@ import SwiftUI
 struct PomodoroView: View {
     @ObservedObject var timer: PomodoroTimer
     @State private var showingSettings: Bool = false
+    @Environment(\.sheetMaxHeight) private var sheetMaxHeight
 
     private let cyan   = Color(red: 0.55, green: 0.95, blue: 1.0)
     private let amber  = Color(red: 1.00, green: 0.78, blue: 0.20)
     private let purple = Color(red: 0.65, green: 0.55, blue: 1.00)
 
     var body: some View {
-        VStack(spacing: 22) {
-            ringView
-            controls
-            stats
-            if showingSettings { settings }
-            Spacer(minLength: 0)
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 22) {
+                ringView
+                controls
+                stats
+                if showingSettings { settings }
+            }
+            .padding(28)
         }
-        .padding(28)
         .frame(minWidth: 320, idealWidth: 380, maxWidth: 480)
-        .frame(minHeight: 460)
+        .frame(minHeight: min(460, sheetMaxHeight), idealHeight: min(showingSettings ? 640 : 470, sheetMaxHeight),
+               maxHeight: sheetMaxHeight)
         .background(panelBackground)
         .overlay(panelBorder)
         .colorScheme(.dark)

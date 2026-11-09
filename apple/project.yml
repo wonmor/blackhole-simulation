@@ -53,7 +53,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         CFBundleDisplayName: BlackHole
         CFBundleShortVersionString: "1.0.0"
-        CFBundleVersion: "6"
+        CFBundleVersion: "7"
         ITSAppUsesNonExemptEncryption: false
         NSPhotoLibraryAddUsageDescription: "BlackHole needs permission to save the current black-hole frame to your Photos so you can set it as your iPhone wallpaper. The app does not read or scan your existing photos."
     scheme:
@@ -63,7 +63,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.orchestrsim.blackholesim
-        CURRENT_PROJECT_VERSION: "6"
+        CURRENT_PROJECT_VERSION: "7"
         # Device builds link the Rust Kerr engine (physics-engine/gravitas-ffi,
         # built by the pre-build script below); the HUD's horizon, photon
         # sphere and ISCO readouts then come from Rust. Simulator builds keep
@@ -133,7 +133,7 @@ targets:
         LSMinimumSystemVersion: "14.0"
         NSHighResolutionCapable: YES
         CFBundleShortVersionString: "1.0.0"
-        CFBundleVersion: "4"
+        CFBundleVersion: "5"
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.entertainment
     scheme:
@@ -142,7 +142,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.orchestrsim.blackholesim
         PRODUCT_NAME: BlackHole
-        CURRENT_PROJECT_VERSION: "4"
+        CURRENT_PROJECT_VERSION: "5"
         GENERATE_INFOPLIST_FILE: NO
         MTL_ENABLE_DEBUG_INFO: INCLUDE_SOURCE
         MTL_FAST_MATH: YES

@@ -26,7 +26,8 @@ struct HUDView: View {
         // panel scrolls instead of spilling over the footer.
         ViewThatFits(in: .vertical) {
             content
-            ScrollView(.vertical, showsIndicators: false) { content }
+            ScrollView(.vertical, showsIndicators: true) { content }
+                .scrollFadeMask()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -201,7 +202,7 @@ private struct MathPanel: View {
             sectionHeader("Kerr geometry")
             equation(
                 title: "Event horizon",
-                formula: eq("r₊ = M + √(M² − a²)"),
+                formula: eq("r_+ = M + √(M^2 − a^2)"),
                 cite: "Bardeen 1973"
             )
             equation(
@@ -211,24 +212,24 @@ private struct MathPanel: View {
             )
             equation(
                 title: "ISCO",
-                formula: eq("r_{ISCO} = M[3 + Z₂ − √((3−Z₁)(3+Z₁+2Z₂))]"),
+                formula: eq("r_{ISCO} = M[3 + Z_2 − √((3 − Z_1)(3 + Z_1 + 2Z_2))]"),
                 cite: "Bardeen, Press & Teukolsky 1972"
             )
             equation(
                 title: "Ergosphere",
-                formula: eq("r_E(θ) = M + √(M² − a²cos²θ)"),
+                formula: eq("r_E(θ) = M + √(M^2 − a^2 cos^2 θ)"),
                 cite: "Kerr 1963"
             )
 
             sectionHeader("Geodesic dynamics")
             equation(
                 title: "Kerr-Schild accel",
-                formula: eq("a⃗ = −(M/r² + 3M L²eff /r⁴)(σ/r²) r̂ + ω (ŷ × v⃗)"),
+                formula: eq("a = −(M/r^2 + 3M L_{eff}^2/r^4)(σ/r^2) r̂ + ω (ŷ × v)"),
                 cite: "Chandrasekhar 1983"
             )
             equation(
                 title: "Frame-dragging (ZAMO)",
-                formula: eq("ω = 2 M a / (r³ + a² r)"),
+                formula: eq("ω = 2Ma / (r^3 + a^2 r)"),
                 cite: "Bardeen, Press & Teukolsky 1972"
             )
 
@@ -245,19 +246,19 @@ private struct MathPanel: View {
             )
             equation(
                 title: "Novikov–Thorne T(r)",
-                formula: eq("T ∝ T₀ (r_{ISCO}/r)^(3/4) (1 − √(r_{ISCO}/r))^(1/4) × δ"),
+                formula: eq("T ∝ T_0 (r_{ISCO}/r)^(3/4) (1 − √(r_{ISCO}/r))^(1/4) × δ"),
                 cite: "Novikov & Thorne 1973"
             )
             equation(
                 title: "Relativistic beaming",
-                formula: eq("I_obs = I_em × δ^(7/2)"),
+                formula: eq("I_{obs} = I_{em} × δ^(7/2)"),
                 cite: "Liouville's theorem"
             )
 
             sectionHeader("Pipeline")
             equation(
                 title: "Blackbody (linear)",
-                formula: eq("c_lin = (Tanner-Helland(T))^(2.2)"),
+                formula: eq("c_{lin} = (Tanner-Helland(T))^(2.2)"),
                 cite: "Tanner-Helland approx."
             )
             equation(
@@ -284,14 +285,19 @@ private struct MathPanel: View {
                 Text(title)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.white.opacity(0.55))
-                Spacer()
+                    .lineLimit(1)
+                    .layoutPriority(1)
+                Spacer(minLength: 8)
                 Text(cite)
                     .font(.system(size: 9))
                     .foregroundColor(.white.opacity(0.30))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
             Text(formula)
                 .font(.system(size: 11, design: .serif))
                 .foregroundColor(.white.opacity(0.92))
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -308,7 +314,7 @@ private func eq(_ s: String) -> AttributedString {
     sub.baselineOffset = -2
 
     var sup = AttributeContainer()
-    sup.font = .system(size: 8, design: .serif).italic()
+    sup.font = .system(size: 8, design: .serif)
     sup.baselineOffset = 5
 
     var i = s.startIndex
@@ -328,8 +334,8 @@ private func eq(_ s: String) -> AttributedString {
             }
         } else if c == "^", let next = s.index(i, offsetBy: 1, limitedBy: s.endIndex), next < s.endIndex {
             let after = s[next]
-            if after == "(" {
-                let close = s[next...].firstIndex(of: ")") ?? s.endIndex
+            if after == "(" || after == "{" {
+                let close = s[next...].firstIndex(of: after == "(" ? ")" : "}") ?? s.endIndex
                 let body = String(s[s.index(after: next)..<close])
                 out.append(AttributedString(body).mergingAttributes(sup))
                 i = (close < s.endIndex) ? s.index(after: close) : s.endIndex

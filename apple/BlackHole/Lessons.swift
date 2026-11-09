@@ -133,6 +133,8 @@ struct LessonsSheet: View {
 
     private let cyan = Color(red: 0.55, green: 0.95, blue: 1.0)
 
+    @Environment(\.sheetMaxHeight) private var sheetMaxHeight
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
@@ -167,7 +169,7 @@ struct LessonsSheet: View {
         }
         .padding(22)
         #if os(macOS)
-        .frame(width: 460, height: 560)
+        .frame(width: 460, height: min(560, sheetMaxHeight))
         #endif
         .background(Color.black.opacity(0.92))
         .colorScheme(.dark)
@@ -226,6 +228,7 @@ struct LessonCard: View {
     @ObservedObject var subscription: SubscriptionManager
     @ObservedObject var ui: UIState
     @State private var expanded = true
+    @State private var textHeight: CGFloat = 120
 
     private let cyan = Color(red: 0.55, green: 0.95, blue: 1.0)
 
@@ -261,24 +264,18 @@ struct LessonCard: View {
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                 .foregroundColor(.white)
             if expanded {
+                // Sized to the text; scrolls only when the window is short.
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(lesson.body)
-                            .font(.system(size: 12))
-                            .foregroundColor(.white.opacity(0.85))
-                            .fixedSize(horizontal: false, vertical: true)
-                        HStack(alignment: .top, spacing: 6) {
-                            Image(systemName: "hand.point.up.left")
-                                .font(.system(size: 11))
-                                .foregroundColor(cyan)
-                            Text(lesson.tryThis)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(cyan.opacity(0.95))
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
+                    lessonText
+                        .background(GeometryReader { g in
+                            Color.clear
+                                .onAppear { textHeight = g.size.height }
+                                .onChange(of: g.size.height) { _, h in textHeight = h }
+                        })
                 }
-                .frame(maxHeight: 170)
+                .scrollBounceBehavior(.basedOnSize)
+                .modifier(FadeIf(on: textHeight > 170))
+                .frame(height: min(max(textHeight, 1), 170))
             }
             HStack {
                 if let prev = Lesson(rawValue: lesson.rawValue - 1) {
@@ -308,6 +305,24 @@ struct LessonCard: View {
         )
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.white.opacity(0.14), lineWidth: 0.7))
         .colorScheme(.dark)
+    }
+
+    private var lessonText: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(lesson.body)
+                .font(.system(size: 12))
+                .foregroundColor(.white.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "hand.point.up.left")
+                    .font(.system(size: 11))
+                    .foregroundColor(cyan)
+                Text(lesson.tryThis)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(cyan.opacity(0.95))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     private func go(_ l: Lesson) {
@@ -357,5 +372,13 @@ struct ProBadge: View {
             .padding(.vertical, 1.5)
             .background(RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .fill(Color(red: 0.55, green: 0.95, blue: 1.0)))
+    }
+}
+
+/// Bottom fade only when the content actually overflows.
+private struct FadeIf: ViewModifier {
+    let on: Bool
+    func body(content: Content) -> some View {
+        if on { content.scrollFadeMask() } else { content }
     }
 }

@@ -6,12 +6,19 @@ import SwiftUI
 struct WelcomeSheet: View {
     @ObservedObject var ui: UIState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.sheetMaxHeight) private var sheetMaxHeight
 
     private let cyan = Color(red: 0.55, green: 0.95, blue: 1.0)
 
     var body: some View {
         #if os(macOS)
-        content.frame(width: 480)
+        // Scrolls when the window is shorter than the sheet's content.
+        ViewThatFits(in: .vertical) {
+            content.frame(width: 480)
+            ScrollView { content.frame(width: 480) }
+                .frame(width: 480, height: sheetMaxHeight)
+        }
+        .frame(maxHeight: sheetMaxHeight)
         #else
         ScrollView { content }
         #endif

@@ -1,0 +1,21 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="../_style.css"><title>BlackHole Physics Notes</title></head><body><main>
+<nav><a href="../">BlackHole</a><a class="on" href="./">Physics</a><a href="../support/">Support</a><a href="../privacy/">Privacy</a></nav>
+<h1>PHYSICS NOTES</h1>
+<p class="sub">What the app computes, and where each formula comes from.</p>
+<h2>Ray tracing</h2>
+<p>A Metal fragment shader integrates a null geodesic for every pixel of every frame in Kerr-Schild coordinates, which stay regular at the horizon. The step count runs from 32 (Low) to 500 (Cinematic); steps shrink near the photon sphere so the photon ring and higher-order images stay sharp. Frame dragging enters through the zero-angular-momentum-observer rate <span class="mono">ω = 2Ma / (r³ + a²r)</span>.</p>
+<h2>Horizon, photon sphere, ISCO</h2>
+<p>The readouts use the closed forms of Bardeen, Press and Teukolsky (1972): the outer horizon <span class="mono">r₊ = M + √(M² − a²)</span>, the prograde photon orbit, the innermost stable circular orbit and the equatorial ergosphere. On iPhone they come from gravitas, our Rust relativity library compiled into the app.</p>
+<h2>Accretion disk</h2>
+<p>The disk follows the Novikov–Thorne / Page–Thorne thin-disk temperature profile from the ISCO outwards. Each ray that hits the disk is coloured by a blackbody approximation at the local temperature and brightened or dimmed by the relativistic Doppler factor raised to the 3.5 power, which is why the approaching side is brighter.</p>
+<h2>Image pipeline</h2>
+<p>Rendering is HDR with temporal anti-aliasing, bloom and ACES tone mapping. Posters on iPhone are rendered at 4K with 16-pass supersampling.</p>
+<h2>References</h2>
+<ul>
+<li>Bardeen, Press &amp; Teukolsky, ApJ 178, 347 (1972)</li>
+<li>Novikov &amp; Thorne, in Black Holes (Les Houches, 1973); Page &amp; Thorne, ApJ 191, 499 (1974)</li>
+<li>Chandrasekhar, The Mathematical Theory of Black Holes (1983)</li>
+<li>Kerr, Phys. Rev. Lett. 11, 237 (1963)</li>
+</ul>
+<footer>Orch Aerospace, Inc. Questions: <a href="mailto:john@orchestrsim.com">john@orchestrsim.com</a></footer>
+</main></body></html>

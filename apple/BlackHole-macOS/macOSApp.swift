@@ -18,14 +18,18 @@ struct BlackHoleMacApp: App {
                         pomodoro: pomodoro,
                         ui: ui)
                 .preferredColorScheme(.dark)
-                // Tall enough for the control panel + sheets on a 13"/15"
-                // MacBook Air; the panels scroll below this anyway.
-                .frame(minWidth: 960, minHeight: 700)
+                // Smallest window every layout is checked at: the HUD with
+                // equations, the control panel and the lesson card fit side by
+                // side, panels scroll, and sheets cap to the window height.
+                .frame(minWidth: 900, minHeight: 620)
                 .environmentObject(controller)
                 .environmentObject(subscription)
                 .task {
                     controller.bind(subscription: subscription, params: params)
                 }
+                #if DEBUG
+                .task { await QALaunch.apply(params: params, ui: ui, subscription: subscription) }
+                #endif
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1280, height: 820)
