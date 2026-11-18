@@ -6,49 +6,47 @@ struct BlackHoleVisionApp: App {
     @StateObject private var params       = BlackHoleParameters()
     @StateObject private var subscription = SubscriptionManager()
     @StateObject private var pomodoro     = PomodoroTimer()
-
-    @State private var immersionStyle: ImmersionStyle = .full
+    @ObservedObject private var control   = ImmersiveController.shared
 
     var body: some Scene {
-        // Floating control window — slim variant of ControlPanel without
-        // the live MetalView preview (rendering happens in the immersive
-        // space instead).
-        WindowGroup("BlackHole", id: "control") {
-            VisionControlsView(params: params,
-                               subscription: subscription,
-                               pomodoro: pomodoro)
-                .preferredColorScheme(.dark)
-                .frame(minWidth: 480, idealWidth: 540, minHeight: 700)
+        WindowGroup("iBlackHole", id: "control") {
+            VisionControlsView(params: params, subscription: subscription, pomodoro: pomodoro)
                 .sheet(isPresented: $subscription.requestPaywall) {
                     PaywallSheet(subscription: subscription)
                 }
         }
-        .windowResizability(.contentSize)
-        .defaultSize(width: 540, height: 820)
+        .defaultSize(width: 760, height: 900)
 
-        // The actual simulation — fully immersive, surrounding the user.
+        // The black hole itself: ray traced per eye with Metal through
+        // CompositorServices. Mixed immersion keeps the room visible around it;
+        // full immersion surrounds you with the lensed starfield.
         ImmersiveSpace(id: "blackhole-immersive") {
             CompositorLayer(configuration: ImmersiveLayerConfig()) { layerRenderer in
-                let renderer = ImmersiveRenderer(layerRenderer: layerRenderer,
-                                                 params: params)
+                let renderer = ImmersiveRenderer(layerRenderer: layerRenderer, params: params)
                 renderer.startRenderLoop()
             }
         }
-        .immersionStyle(selection: $immersionStyle, in: .full)
+        .immersionStyle(selection: styleBinding, in: .mixed, .full)
+        .upperLimbVisibility(.visible)
+    }
+
+    private var styleBinding: Binding<any ImmersionStyle> {
+        Binding(
+            get: { control.mode == .space ? (FullImmersionStyle.full as any ImmersionStyle) : (MixedImmersionStyle.mixed as any ImmersionStyle) },
+            set: { _ in }
+        )
     }
 }
 
-/// Minimal CompositorLayer config for full immersion.
-///
-/// `layout = .dedicated` forces separate per-eye textures so we can render
-/// each eye in its own pass without vertex amplification — works on both
-/// the visionOS simulator (no amplification support) and real device.
-/// We let Compositor pick the color / depth formats so the pipeline
-/// descriptor we build later matches what the drawable actually provides.
+/// Dedicated layout: one texture per eye, rendered in its own pass (works on
+/// the simulator, which has no vertex amplification, and on device).
+/// Foveation on so the composite pass shades the periphery at a lower rate.
 private struct ImmersiveLayerConfig: CompositorLayerConfiguration {
     func makeConfiguration(capabilities: LayerRenderer.Capabilities,
                            configuration: inout LayerRenderer.Configuration) {
-        configuration.isFoveationEnabled = capabilities.supportsFoveation
-        configuration.layout = .dedicated
+        let foveation = capabilities.supportsFoveation
+        configuration.isFoveationEnabled = foveation
+        let layouts = capabilities.supportedLayouts(options: foveation ? [.foveationEnabled] : [])
+        configuration.layout = layouts.contains(.dedicated) ? .dedicated : (layouts.first ?? .dedicated)
     }
 }

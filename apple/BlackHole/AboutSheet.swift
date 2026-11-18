@@ -36,7 +36,7 @@ struct AboutSheet: View {
             HStack(alignment: .top) {
                 logo
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("BLACKHOLE")
+                    Text(AppBrand.name.uppercased())
                         .font(.system(size: 18, weight: .ultraLight))
                         .tracking(5)
                         .foregroundColor(.white)
@@ -51,7 +51,7 @@ struct AboutSheet: View {
             divider
 
             sectionTitle("WHAT IT COMPUTES")
-            Text("BlackHole integrates null geodesics through the Kerr–Schild metric in a Metal fragment shader, so every pixel of every frame is a light ray traced through the curved spacetime of a rotating black hole on your GPU. Nothing is pre-rendered: change the mass or spin and the shadow, gravitational lensing, frame-dragging and the Page–Thorne accretion disk (Doppler boost, Novikov–Thorne temperature profile, blackbody colour) are recomputed live.")
+            Text("\(AppBrand.name) integrates null geodesics through the Kerr–Schild metric in a Metal fragment shader, so every pixel of every frame is a light ray traced through the curved spacetime of a rotating black hole on your GPU. Nothing is pre-rendered: change the mass or spin and the shadow, gravitational lensing, frame-dragging and the Page–Thorne accretion disk (Doppler boost, Novikov–Thorne temperature profile, blackbody colour) are recomputed live.")
                 .font(.system(size: 11.5))
                 .foregroundColor(.white.opacity(0.80))
                 .fixedSize(horizontal: false, vertical: true)

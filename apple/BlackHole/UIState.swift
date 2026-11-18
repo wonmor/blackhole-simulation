@@ -74,3 +74,12 @@ extension View {
         )
     }
 }
+
+/// User-facing app name. The Vision Pro app ships as "iBlackHole".
+enum AppBrand {
+    #if os(visionOS)
+    static let name = "iBlackHole"
+    #else
+    static let name = "BlackHole"
+    #endif
+}

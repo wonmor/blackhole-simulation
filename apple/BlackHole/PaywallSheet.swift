@@ -38,6 +38,8 @@ struct PaywallSheet: View {
         }
         #if os(macOS)
         .frame(width: 520, height: min(720, sheetMaxHeight))
+        #elseif os(visionOS)
+        .frame(width: 660, height: 860)
         #endif
         .background(Color.black.opacity(0.94))
         .colorScheme(.dark)
@@ -60,19 +62,19 @@ struct PaywallSheet: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(subscription.paywallHeadline ?? subscription.paywallReason.map { "\($0) is part of Pro" } ?? "BlackHole Pro")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                Text(subscription.paywallHeadline ?? subscription.paywallReason.map { "\($0) is part of Pro" } ?? "\(AppBrand.name) Pro")
+                    .font(.system(size: 22 * PaywallScale.factor, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("The simulator, every slider, Low to High quality, four scenarios, two lessons and still-frame saving stay free. Pro adds the rest, once, for good.")
-                    .font(.system(size: 12))
+                Text(PaywallScale.freeLine)
+                    .font(.system(size: 12 * PaywallScale.factor))
                     .foregroundColor(.white.opacity(0.62))
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 12 * PaywallScale.factor, weight: .semibold))
                     .foregroundColor(.white.opacity(0.6))
                     .padding(8)
             }
@@ -85,17 +87,23 @@ struct PaywallSheet: View {
     private var features: some View {
         VStack(alignment: .leading, spacing: 10) {
             Feature(icon: "camera.aperture", title: "Ultra and Cinematic ray tracing",
-                    text: "Up to 500 geodesic steps per pixel: a sharper photon ring and more higher-order images.")
+                    text: PaywallScale.rayLine)
             #if os(iOS)
             Feature(icon: "photo", title: "4K poster export",
                     text: "Render a supersampled 4K still with 16-pass anti-aliasing and save it to Photos.")
             Feature(icon: "film", title: "Orbit video export",
                     text: "Render a smooth 12-second 360° fly-around as a 1080p video.")
             #endif
+            #if os(visionOS)
+            Feature(icon: "visionpro", title: "Full immersion",
+                    text: "Step into space: the lensed starfield wraps all the way around you. Placing the black hole in your room stays free.")
+            #endif
             Feature(icon: "sparkles", title: "Six more scenarios",
                     text: "M87*, a film-style thin disk, retrograde spin, Cygnus X-1, a quasar and a bare shadow.")
+            #if !os(visionOS)
             Feature(icon: "graduationcap", title: "All eight lessons",
                     text: "Guided tours of Doppler beaming, redshift, frame dragging, the ISCO, disk colour and jets.")
+            #endif
             #if os(macOS)
             Feature(icon: "macwindow", title: "Live desktop wallpaper",
                     text: "The black hole renders behind your windows on every display.")
@@ -112,7 +120,7 @@ struct PaywallSheet: View {
     private var plans: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("CHOOSE A PLAN")
-                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .font(.system(size: 9 * PaywallScale.factor, weight: .semibold, design: .rounded))
                 .tracking(1.4)
                 .foregroundColor(cyan.opacity(0.85))
 
@@ -137,7 +145,7 @@ struct PaywallSheet: View {
                             .foregroundColor(cyan)
                     }
                 }
-                .font(.system(size: 11))
+                .font(.system(size: 11 * PaywallScale.factor))
                 .foregroundColor(.white.opacity(0.6))
             }
         }
@@ -149,18 +157,18 @@ struct PaywallSheet: View {
         return Button { selectedID = id } label: {
             HStack(alignment: .center, spacing: 12) {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: 13 * PaywallScale.factor, weight: .bold))
                     .foregroundColor(cyan)
                     .opacity(selected ? 1 : 0)
                     .frame(width: 16)
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         Text(planTitle(id))
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.system(size: 14 * PaywallScale.factor, weight: .semibold))
                             .foregroundColor(.white)
                         if let badge = badge(for: id) {
                             Text(badge)
-                                .font(.system(size: 9, weight: .bold, design: .rounded))
+                                .font(.system(size: 9 * PaywallScale.factor, weight: .bold, design: .rounded))
                                 .tracking(0.6)
                                 .foregroundColor(.black)
                                 .padding(.horizontal, 6)
@@ -169,17 +177,17 @@ struct PaywallSheet: View {
                         }
                     }
                     Text(product.map { terms(for: $0) } ?? QAMock.terms(id) ?? fallbackTerms)
-                        .font(.system(size: 11))
+                        .font(.system(size: 11 * PaywallScale.factor))
                         .foregroundColor(.white.opacity(0.62))
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(product?.displayPrice ?? QAMock.price(id) ?? "")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded).monospacedDigit())
+                        .font(.system(size: 15 * PaywallScale.factor, weight: .semibold, design: .rounded).monospacedDigit())
                         .foregroundColor(.white)
                     Text(product.map { periodSuffix($0) } ?? QAMock.suffix(id) ?? "")
-                        .font(.system(size: 10))
+                        .font(.system(size: 10 * PaywallScale.factor))
                         .foregroundColor(.white.opacity(0.5))
                 }
             }
@@ -215,7 +223,7 @@ struct PaywallSheet: View {
                 HStack(spacing: 8) {
                     if subscription.isPurchasing { ProgressView().controlSize(.small).tint(.black) }
                     Text(ctaTitle)
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .font(.system(size: 15 * PaywallScale.factor, weight: .semibold, design: .rounded))
                 }
                 .foregroundColor(.black)
                 .frame(maxWidth: .infinity)
@@ -227,13 +235,13 @@ struct PaywallSheet: View {
             .keyboardShortcut(.defaultAction)
 
             Text(ctaFinePrint)
-                .font(.system(size: 10.5))
+                .font(.system(size: 10.5 * PaywallScale.factor))
                 .foregroundColor(.white.opacity(0.6))
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text("Subscriptions are charged to your Apple Account at confirmation of purchase (or when a free trial ends) and renew automatically at the same price and length unless cancelled at least 24 hours before the end of the current period. Manage or cancel in your Apple Account settings. Lifetime is a single payment and does not renew.")
-                .font(.system(size: 9.5))
+                .font(.system(size: 9.5 * PaywallScale.factor))
                 .foregroundColor(.white.opacity(0.42))
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -247,7 +255,7 @@ struct PaywallSheet: View {
                 Link("Privacy Policy", destination: AppLinks.privacyPolicy)
             }
             .buttonStyle(.plain)
-            .font(.system(size: 11, weight: .medium))
+            .font(.system(size: 11 * PaywallScale.factor, weight: .medium))
             .foregroundColor(cyan)
             .lineLimit(1)
             .minimumScaleFactor(0.75)
@@ -359,16 +367,16 @@ private struct Feature: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .regular))
+                .font(.system(size: 13 * PaywallScale.factor, weight: .regular))
                 .foregroundColor(Color(red: 0.55, green: 0.95, blue: 1.0))
                 .frame(width: 20, alignment: .center)
                 .padding(.top, 1)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.system(size: 12.5, weight: .semibold))
+                    .font(.system(size: 12.5 * PaywallScale.factor, weight: .semibold))
                     .foregroundColor(.white)
                 Text(text)
-                    .font(.system(size: 11.5))
+                    .font(.system(size: 11.5 * PaywallScale.factor))
                     .foregroundColor(.white.opacity(0.66))
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -411,4 +419,18 @@ enum QAMock {
         default:                            return "One-time purchase. Pro forever, no subscription."
         }
     }
+}
+
+
+/// Type scale and copy differences for the Vision Pro paywall.
+enum PaywallScale {
+    #if os(visionOS)
+    static let factor: CGFloat = 1.3
+    static let rayLine = "More geodesic steps per ray and a sharper render: a crisper photon ring and more higher-order images."
+    static let freeLine = "The black hole in your room, every slider, Low to High quality and four scenarios stay free. Pro adds the rest, once, for good."
+    #else
+    static let factor: CGFloat = 1.0
+    static let rayLine = "Up to 500 geodesic steps per pixel: a sharper photon ring and more higher-order images."
+    static let freeLine = "The simulator, every slider, Low to High quality, four scenarios, two lessons and still-frame saving stay free. Pro adds the rest, once, for good."
+    #endif
 }

@@ -1,15 +1,48 @@
-// visionOS stereo Kerr black hole shader.
+// iBlackHole for Apple Vision Pro: stereo Kerr black hole that sits in the room.
 //
-// Same Kerr/disk/blackbody/starfield math as the windowed `BlackHole.metal`,
-// but world-space rays come from per-eye `eyeWorldFromView` + `tangents`
-// instead of the windowed renderer's mouse/zoom path. One pipeline serves
-// both eyes via vertex amplification.
+// Two passes per eye, both driven by CompositorServices views:
+//
+//  A  bh_march_fs     Offscreen, at an adaptive fraction of the eye resolution.
+//                     Rays that miss the black hole's bounding sphere exit after
+//                     one ray/sphere test. Rays that enter it are integrated
+//                     through the same Kerr acceleration, disk and jet model as
+//                     the iPhone / Mac renderer (BlackHole.metal), with a step
+//                     budget the CPU governor keeps inside the 90 fps frame.
+//                     Output 0: premultiplied emission + opacity.
+//                     Output 1: escape direction in world space (w = 1).
+//
+//  B  bh_composite_fs Full resolution with the system foveation map. Upsamples A,
+//                     draws point stars along the lensed direction (weak-field
+//                     deflection 4M/b outside the sphere, so the starfield bends
+//                     continuously across the sphere edge), tone maps, and writes
+//                     reverse-Z depth so passthrough and hands composite correctly.
+//                     Mixed immersion: only the black hole is drawn, alpha
+//                     premultiplied, the room stays visible around it.
+//                     Full immersion: the lensed sky fills the whole view.
 
 #include <metal_stdlib>
-#include "../BlackHole/Shared/ShaderTypes.h"
 using namespace metal;
 
-constant float MAX_DIST          = 10000.0;
+// ---------- Shared layouts (mirrored in ImmersiveRenderer.swift) ----------
+
+struct ImmEye {
+    float4x4 viewFromClip;   // inverse projection of this eye
+    float4x4 worldFromView;  // eye pose in the immersive space
+    float4   misc;           // x: clip depth of the black hole centre, y: 1 = encode gamma,
+                             // z, w: offscreen viewport size / offscreen texture size
+};
+
+struct ImmScene {
+    float4x4 bhFromWorld;    // rigid: world -> black-hole frame (spin axis = +y)
+    float4x4 worldFromBH;
+    float4   a;   // x units per metre, y M, z spin parameter a (units of length), w bounding radius R
+    float4   b;   // x time, y disk clock, z lensing strength, w frame-drag strength
+    float4   c;   // x disk density, y disk temperature K, z disk outer radius, w disk scale height
+    float4   d;   // x max steps, y mode (0 mixed, 1 full), z feature bits, w sky brightness
+};
+
+constant uint F_LENS = 1u, F_DISK = 2u, F_DOPPLER = 4u, F_PHOTON = 8u, F_STARS = 16u, F_JETS = 32u;
+
 constant float MIN_STEP          = 0.01;
 constant float MAX_STEP          = 1.2;
 constant float HORIZON_THRESHOLD = 1.15;
@@ -19,33 +52,16 @@ constant float DISK_TURB_DETAIL  = 2.5;
 constant float DISK_TIME_SCALE   = 0.12;
 constant float DISK_DENSITY_FALL = 0.25;
 
-struct SingleEyeUniforms {
-    float4x4 eyeWorldFromView;
-    float4   tangents;     // (left, right, top, bottom)
-    float3   blackHolePosition;
-    float    _pad0;
-};
-
-// ---------- Vertex stage (single eye per pass) ----------
-//
-// `[[invariant]]` on the position output silences a visionOS-specific
-// validator complaint where same-vertex re-renders across eyes need
-// guaranteed-identical clip positions. Without it the post-compile
-// validator hard-asserts on Compositor pipelines.
+// ---------- Full-screen triangle ----------
 
 struct VSOut {
     float4 position [[position, invariant]];
     float2 ndc;
 };
 
-vertex VSOut immersive_vs(uint vid [[vertex_id]])
+vertex VSOut imm_vs(uint vid [[vertex_id]])
 {
-    float2 pos;
-    switch (vid) {
-        case 0: pos = float2(-1.0, -3.0); break;
-        case 1: pos = float2(-1.0,  1.0); break;
-        default: pos = float2( 3.0,  1.0); break;
-    }
+    float2 pos = float2((vid == 2) ? 3.0 : -1.0, (vid == 0) ? -3.0 : 1.0);
     VSOut o;
     o.position = float4(pos, 0.0, 1.0);
     o.ndc = pos;
@@ -58,6 +74,10 @@ inline float hash13(float3 p) {
     p = fract(p * float3(443.8975, 397.2973, 491.1871));
     p += dot(p, p.yzx + 19.19);
     return fract((p.x + p.y) * p.z);
+}
+
+inline float3 hash33(float3 p) {
+    return float3(hash13(p), hash13(p + 31.7), hash13(p + 77.3));
 }
 
 inline float vnoise(float3 p) {
@@ -76,13 +96,7 @@ inline float vnoise(float3 p) {
                mix(mix(n001, n101, u.x), mix(n011, n111, u.x), u.y), u.z);
 }
 
-inline float fbm(float3 p) {
-    float a = 0.5, s = 0.0;
-    for (int i = 0; i < 4; ++i) { s += a * vnoise(p); p *= 2.02; a *= 0.5; }
-    return s;
-}
-
-// ---------- Blackbody + stars ----------
+// ---------- Colour ----------
 
 inline float3 blackbody(float temp) {
     float t = max(temp, 1.0) / 100.0;
@@ -102,41 +116,43 @@ inline float3 blackbody(float temp) {
 
 inline float3 starColor(float bv) {
     float t = clamp(bv, -0.4, 2.0);
-    if (t < 0.0)  return float3(0.6, 0.7, 1.0);
+    if (t < 0.0)  return float3(0.62, 0.72, 1.0);
     if (t < 0.3)  return float3(0.85, 0.88, 1.0);
     if (t < 0.6)  return float3(1.0, 0.96, 0.9);
-    if (t < 1.0)  return float3(1.0, 0.85, 0.6);
-    return float3(1.0, 0.6, 0.4);
+    if (t < 1.0)  return float3(1.0, 0.85, 0.62);
+    return float3(1.0, 0.64, 0.44);
 }
 
-inline float3 starfield(float3 dir, float time) {
-    float3 stars = float3(0.0);
-    float3 cell = floor(dir * 200.0);
+// One layer of point stars: each cell of a 3D grid over the direction sphere may
+// hold one star at a random offset, drawn as a small Gaussian so it stays a point
+// at Vision Pro resolution instead of filling the cell.
+inline float3 starLayer(float3 dir, float density, float keep, float size, float gain) {
+    float3 q = dir * density;
+    float3 cell = floor(q);
     float n = hash13(cell);
-    if (n > 0.998) {
-        float brightness = pow(n, 10.0) * 2.0;
-        float bv = hash13(cell + 127.1) * 2.4 - 0.4;
-        float twinkle = 0.85 + 0.15 * sin(time * (3.0 + hash13(cell + 73.7) * 2.0));
-        stars = starColor(bv) * brightness * twinkle;
-    }
-    cell = floor(dir * 500.0);
-    n = hash13(cell);
-    if (n > 0.996) {
-        float brightness = pow(n, 20.0) * 1.5;
-        float bv = hash13(cell + 217.3) * 2.4 - 0.4;
-        stars += starColor(bv) * brightness;
-    }
-    float neb = fbm(dir * 2.0 + float3(time * 0.01)) * 0.03;
-    stars += float3(neb * 0.2, neb * 0.3, neb * 0.5)
-           + float3(0.05, 0.02, 0.05) * abs(neb);
-    return stars;
+    if (n < keep) return float3(0.0);
+    float3 c = cell + 0.2 + 0.6 * hash33(cell + 5.3);
+    float d2 = length_squared(q - c);
+    float b = exp(-d2 / (size * size)) * gain * (0.35 + 0.65 * pow((n - keep) / (1.0 - keep), 3.0));
+    return starColor(hash13(cell + 127.1) * 2.4 - 0.4) * b;
 }
 
-// ---------- Kerr metric helpers ----------
-
-inline float kerr_horizon(float M, float a) {
-    return M + sqrt(max(0.0, M*M - a*a));
+inline float3 sky(float3 dir, float time) {
+    float3 s = starLayer(dir, 160.0, 0.985, 0.10, 2.6);
+    s += starLayer(dir, 420.0, 0.975, 0.12, 1.1);
+    s += starLayer(dir, 900.0, 0.970, 0.14, 0.45);
+    // A faint galactic band and dust so full immersion is not a flat black.
+    float3 g = normalize(float3(0.32, 0.88, -0.35));
+    float band = exp(-pow(dot(dir, g) * 4.2, 2.0));
+    float neb = vnoise(dir * 3.1 + float3(0.0, 0.0, time * 0.003)) * 0.6 + vnoise(dir * 7.3) * 0.4;
+    s += band * (0.010 + 0.022 * neb) * float3(0.85, 0.80, 1.0);
+    s += float3(0.006, 0.004, 0.010) * neb * neb;
+    return s;
 }
+
+// ---------- Kerr helpers (as BlackHole.metal) ----------
+
+inline float kerr_horizon(float M, float a) { return M + sqrt(max(0.0, M*M - a*a)); }
 
 inline float kerr_isco(float M, float a) {
     float aStar = a / max(M, 1e-6);
@@ -148,18 +164,14 @@ inline float kerr_isco(float M, float a) {
     return M * (3.0 + z2 - s * sqrt((3.0 - z1) * (3.0 + z1 + 2.0 * z2)));
 }
 
+// Equatorial circular photon orbit; a > 0 prograde, a < 0 retrograde.
 inline float kerr_photon_sphere(float M, float a) {
     float aStar = clamp(a / max(M, 1e-6), -0.9999, 0.9999);
-    float arg = clamp(-aStar, -1.0, 1.0);
-    float theta = (2.0/3.0) * acos(arg);
+    float theta = (2.0/3.0) * acos(clamp(-aStar, -1.0, 1.0));
     return 2.0 * M * (1.0 + cos(theta));
 }
 
-struct KerrAccel {
-    float3 accel;
-    float  rK;
-    float  omega;
-};
+struct KerrAccel { float3 accel; float omega; };
 
 inline KerrAccel kerr_accel(float3 p, float3 v, float M, float a) {
     KerrAccel res;
@@ -169,7 +181,6 @@ inline KerrAccel kerr_accel(float3 p, float3 v, float M, float a) {
     float disc = diff*diff + 4.0 * a2 * p.y*p.y;
     float r2 = 0.5 * (diff + sqrt(max(0.0, disc)));
     float rK = sqrt(max(1e-8, r2));
-    res.rK = rK;
 
     float3 L = cross(p, v);
     float Ly = L.y;
@@ -179,18 +190,15 @@ inline KerrAccel kerr_accel(float3 p, float3 v, float M, float a) {
     float r_inv  = 1.0 / rK;
     float r2_inv = r_inv * r_inv;
     float r4_inv = r2_inv * r2_inv;
-
     float sigma = r2 + a2 * (p.y*p.y / max(1e-8, r2));
     float sigma_ratio = r2 / max(1e-8, sigma);
 
     float3 r_hat = -normalize(p);
-    res.accel = r_hat * (M * r2_inv * sigma_ratio +
-                         3.0 * M * max(0.0, L2_eff) * r4_inv * sigma_ratio);
-
+    res.accel = r_hat * (M * r2_inv * sigma_ratio + 3.0 * M * max(0.0, L2_eff) * r4_inv * sigma_ratio);
     float drag_denom = rK * r2 + a2 * rK;
     float drag_coeff = 2.0 * M * a / max(1e-8, drag_denom);
     res.accel += cross(float3(0.0, 1.0, 0.0), v) * drag_coeff;
-    res.omega = 2.0 * M * a / max(1e-8, drag_denom);
+    res.omega = drag_coeff;
     return res;
 }
 
@@ -199,197 +207,276 @@ inline float2x2 rot(float angle) {
     return float2x2(c, -s, s, c);
 }
 
-// ---------- Disk ----------
-
-inline float3 sample_disk(thread float3 &p, float3 p_prev, thread float3 &v,
-                          float r, float isco, float M, float a, float dt,
-                          constant BHUniforms& u, thread float &alpha)
-{
-    if (alpha > 0.99) return float3(0.0);
-    bool crossedEquator = (p_prev.y * p.y < 0.0);
-    float3 sampleP = p;
-    if (crossedEquator) {
-        float t = abs(p_prev.y) / max(1e-4, abs(p_prev.y) + abs(p.y));
-        sampleP = mix(p_prev, p, t);
-    }
-    float sampleR = length(sampleP);
-    float effectiveScaleHeight = min(u.diskScaleHeight, DISK_HEIGHT_MULT);
-    float diskHeight = sampleR * effectiveScaleHeight;
-    float diskInner = isco;
-    float diskOuter = max(M * u.diskSize, diskInner * 1.1);
-    if (!((abs(sampleP.y) < diskHeight || crossedEquator) &&
-          sampleR > diskInner && sampleR < diskOuter)) {
-        return float3(0.0);
-    }
-
-    float sqrt_M = sqrt(max(M, 1e-6));
-    float signSpin = (u.spin >= 0.0) ? 1.0 : -1.0;
-    float OmegaPhase = (signSpin * sqrt_M) /
-                       (sampleR * sqrt(sampleR) + a * sqrt_M);
-    float rotAngle = OmegaPhase * u.time * DISK_TIME_SCALE * 10.0;
-    float2x2 rotPhase = rot(rotAngle);
-    float3 noiseP = sampleP;
-    {
-        float2 xz = rotPhase * float2(noiseP.x, noiseP.z);
-        noiseP.x = xz.x; noiseP.z = xz.y;
-    }
-    noiseP *= DISK_TURB_SCALE;
-    float turbulence = vnoise(noiseP) * 0.5 + vnoise(noiseP * DISK_TURB_DETAIL) * 0.25;
-    float heightFalloff = exp(-abs(sampleP.y) /
-                              max(1e-3, sampleR * effectiveScaleHeight * DISK_DENSITY_FALL));
-    float radialFalloff = smoothstep(diskOuter, diskInner, sampleR);
-    float baseDensity = turbulence * heightFalloff * radialFalloff;
-    if (baseDensity <= 0.001) return float3(0.0);
-
-    float r2 = sampleR * sampleR;
-    float Omega = (signSpin * sqrt_M) / (sampleR * sqrt(sampleR) + a * sqrt_M);
-    float g_tt = -(1.0 - 2.0 * M / sampleR);
-    float g_tphi = -2.0 * M * a / sampleR;
-    float g_phiphi = r2 + a*a + 2.0 * M * a*a / sampleR;
-    float u_t_sq = -(g_tt + 2.0 * Omega * g_tphi + Omega * Omega * g_phiphi);
-    float u_t = 1.0 / sqrt(max(1e-6, u_t_sq));
-    float L_photon = p.z * v.x - p.x * v.z;
-    float delta = 1.0 / max(0.01, u_t * (1.0 - Omega * L_photon));
-    float beaming = (u.enableDoppler != 0) ? max(0.01, pow(delta, 3.5)) : 1.0;
-
-    float isco_r = clamp(isco / sampleR, 0.0, 1.0);
-    float nt_factor = max(0.0, 1.0 - sqrt(isco_r));
-    float radialTempGradient = pow(isco_r, 0.75) * pow(nt_factor, 0.25);
-    float temperature = u.diskTemp * radialTempGradient * delta;
-    float3 diskColor = blackbody(temperature) * beaming;
-    float density = baseDensity * u.diskDensity * 0.12 * dt;
-    float3 emission = diskColor * density * (1.0 - alpha);
-    alpha = saturate(alpha + density);
-    return emission;
+// Weak-field bending (4M/b in total) collected along a straight ray between the
+// signed distances s0 and s1 from its point of closest approach. Bends v towards
+// the mass. Used for the parts of a ray outside the integrated sphere.
+inline float3 bend(float3 p, float3 v, float s0, float s1, float M, float k) {
+    float3 pc = p - v * dot(p, v);             // closest approach to the centre
+    float b = max(length(pc), 1e-3);
+    float t0 = s0 / sqrt(s0 * s0 + b * b);
+    float t1 = s1 / sqrt(s1 * s1 + b * b);
+    float ang = min(2.0 * M / b * (t1 - t0) * k, 0.8);
+    float3 n = -pc / b;
+    return normalize(v * cos(ang) + n * sin(ang));
 }
 
-// ---------- Fragment ----------
+// ---------- Disk + jets ----------
 
-fragment float4 immersive_fs(VSOut in [[stage_in]],
-                             constant SingleEyeUniforms& s [[buffer(0)]],
-                             constant BHUniforms& u [[buffer(1)]])
+inline float3 sample_disk(float3 p, float3 p_prev, float3 v, float isco, float M, float a,
+                          float dt, constant ImmScene& s, uint flags, thread float &alpha)
 {
-    float4x4 eyeWorldFromView = s.eyeWorldFromView;
-    float4   tangents         = s.tangents;
-    // tangents.x = left, .y = right, .z = top, .w = bottom (from forward)
+    bool crossed = (p_prev.y * p.y < 0.0);
+    float3 sp = p;
+    if (crossed) {
+        float t = abs(p_prev.y) / max(1e-4, abs(p_prev.y) + abs(p.y));
+        sp = mix(p_prev, p, t);
+    }
+    float r = length(sp);
+    float h = min(s.c.w, DISK_HEIGHT_MULT);
+    float outer = max(s.c.z, isco * 1.1);
+    if (!((abs(sp.y) < r * h || crossed) && r > isco && r < outer)) return float3(0.0);
 
-    // Reconstruct view-space ray direction from this pixel's NDC + the eye's
-    // off-axis tangents. ndc.x ∈ [-1,1] maps linearly to [left, right]
-    // tangents; ndc.y maps to [bottom, top].
-    float u01 = in.ndc.x * 0.5 + 0.5;
-    float v01 = in.ndc.y * 0.5 + 0.5;
-    float vx = mix(tangents.x, tangents.y, u01);
-    float vy = mix(tangents.w, tangents.z, v01);
-    float3 viewDir = normalize(float3(vx, vy, -1.0));
+    float sqrtM = sqrt(max(M, 1e-6));
+    float sgn = (a >= 0.0) ? 1.0 : -1.0;
+    float Omega = (sgn * sqrtM) / (r * sqrt(r) + a * sqrtM);
+    float2 xz = rot(Omega * s.b.y * DISK_TIME_SCALE * 10.0) * sp.xz;
+    float3 np = float3(xz.x, sp.y, xz.y) * DISK_TURB_SCALE;
+    float turb = vnoise(np) * 0.5 + vnoise(np * DISK_TURB_DETAIL) * 0.25;
+    float hFall = exp(-abs(sp.y) / max(1e-3, r * h * DISK_DENSITY_FALL));
+    float base = turb * hFall * smoothstep(outer, isco, r);
+    if (base <= 0.001) return float3(0.0);
 
-    // World-space ray direction + camera position.
-    float3 worldDir   = normalize((eyeWorldFromView * float4(viewDir, 0.0)).xyz);
-    float3 cameraPos  = eyeWorldFromView.columns[3].xyz;
+    float r2 = r * r;
+    float g_tt = -(1.0 - 2.0 * M / r);
+    float g_tphi = -2.0 * M * a / r;
+    float g_pp = r2 + a*a + 2.0 * M * a*a / r;
+    float ut = 1.0 / sqrt(max(1e-6, -(g_tt + 2.0 * Omega * g_tphi + Omega * Omega * g_pp)));
+    float Lph = p.z * v.x - p.x * v.z;
+    float delta = 1.0 / max(0.01, ut * (1.0 - Omega * Lph));
+    float beaming = (flags & F_DOPPLER) ? max(0.01, pow(delta, 3.5)) : 1.0;
 
-    // Place black hole at the anchor; move into BH-local frame and scale
-    // gravitational units so the rendered shadow has reasonable size in the
-    // user's room (1 M_sim ≈ 1 / u.zoom physical meters).
-    float scale = max(u.zoom, 1.0);
-    float3 ro = (cameraPos - s.blackHolePosition) * scale;
-    (void)tangents;  // referenced above
-    float3 rd = worldDir;
+    float ir = clamp(isco / r, 0.0, 1.0);
+    float grad = pow(ir, 0.75) * pow(max(0.0, 1.0 - sqrt(ir)), 0.25);
+    float3 col = blackbody(s.c.y * grad * ((flags & F_DOPPLER) ? delta : 1.0)) * beaming;
+    float dens = base * s.c.x * 0.12 * dt;
+    float3 e = col * dens * (1.0 - alpha);
+    alpha = saturate(alpha + dens);
+    return e;
+}
 
-    // ----- Same Kerr raymarch as BlackHole.metal -----
-    float M = max(u.mass, 0.05);
-    float a = clamp(u.spin * M, -M * 0.9999, M * 0.9999);
+inline float3 sample_jet(float3 p, float3 v, float rh, float R, float dt, float time, thread float &alpha)
+{
+    float jy = abs(p.y);
+    if (jy <= rh * 1.8) return float3(0.0);
+    float jr = length(p.xz);
+    float jw = 1.0 + jy * 0.15;
+    if (jr >= jw * 2.0) return float3(0.0);
+    float flow = p.y * 2.0 - time * 8.0;
+    float3 uvJ = float3(p.x, flow, p.z);
+    float n = vnoise(uvJ * 0.5) * 0.6 + vnoise(uvJ * 1.5) * 0.4;
+    float jd = exp(-(jr*jr) / (jw * 0.5)) * exp(-jy * 0.05) * max(0.0, n - 0.2)
+             * smoothstep(R, R * 0.7, length(p));
+    if (jd <= 0.001) return float3(0.0);
+    float beta = 0.92;
+    float cosT = dot(float3(0.0, sign(p.y), 0.0), -v);
+    float dj = 1.0 / ((1.0 / sqrt(1.0 - beta * beta)) * (1.0 - beta * cosT));
+    float3 emit = float3(0.4, 0.7, 1.0) * jd * 0.05 * pow(dj, 3.5) * dt;
+    float3 e = emit * (1.0 - alpha);
+    alpha = saturate(alpha + jd * 0.05 * dt);
+    return e;
+}
+
+// ---------- Ray set-up ----------
+
+struct Ray { float3 ro; float3 rd; float3 wd; };   // BH-frame origin/dir, world dir
+
+inline Ray eyeRay(float2 ndc, constant ImmEye& e, constant ImmScene& s) {
+    float4 v = e.viewFromClip * float4(ndc, 0.5, 1.0);
+    float3 vd = normalize(v.xyz / v.w);
+    float3 wd = normalize((e.worldFromView * float4(vd, 0.0)).xyz);
+    float3 wo = e.worldFromView.columns[3].xyz;
+    Ray r;
+    r.ro = (s.bhFromWorld * float4(wo, 1.0)).xyz * s.a.x;
+    r.rd = normalize((s.bhFromWorld * float4(wd, 0.0)).xyz);
+    r.wd = wd;
+    return r;
+}
+
+// ---------- Pass A: integrate rays through the sphere ----------
+
+struct MarchOut {
+    float4 color [[color(0)]];
+    float4 dir   [[color(1)]];
+};
+
+fragment MarchOut bh_march_fs(VSOut in [[stage_in]],
+                              constant ImmEye& e [[buffer(0)]],
+                              constant ImmScene& s [[buffer(1)]])
+{
+    MarchOut o;
+    o.color = float4(0.0);
+    o.dir = float4(0.0);
+
+    Ray ray = eyeRay(in.ndc, e, s);
+    float R = s.a.w;
+    float3 ro = ray.ro, rd = ray.rd;
+
+    // Ray / bounding sphere.
+    float bq = dot(ro, rd);
+    float cq = dot(ro, ro) - R * R;
+    float disc = bq * bq - cq;
+    if (disc <= 0.0) return o;
+    float sq = sqrt(disc);
+    float tEnter = -bq - sq, tExit = -bq + sq;
+    if (tExit <= 0.0) return o;
+
+    uint flags = uint(s.d.z);
+    float M = s.a.y;
+    float a = s.a.z;
+    float lens = (flags & F_LENS) ? s.b.z : 0.0;
     float rh = kerr_horizon(M, a);
-    float rph = kerr_photon_sphere(M, a);
     float isco = kerr_isco(M, a);
 
     float3 p = ro;
     float3 v = rd;
-    if (length(p) < rh * 1.5) p = normalize(p) * rh * 1.5;
+    if (tEnter > 0.0) {
+        // Bending collected on the way in, from the eye to the sphere.
+        float s0 = dot(ro, rd), s1 = s0 + tEnter;
+        v = bend(ro, rd, s0, s1, M, lens);
+        p = ro + rd * tEnter;
+    }
+
+    // Photon-ring radius for this ray's orbital sense (prograde rays skim closer).
+    float3 L0 = cross(p, v);
+    float lhat = L0.y / max(length(L0), 1e-4);
+    float rph = kerr_photon_sphere(M, a * lhat);
 
     float3 acc = float3(0.0);
     float alpha = 0.0;
-    bool hitHorizon = false;
-    int photonCrossings = 0;
-    float prevY = p.y;
-    int maxSteps = clamp(u.maxRaySteps, 32, 500);
+    bool hit = false;
+    bool escaped = false;
+    float rmin = 1e9;
+    int maxSteps = int(s.d.x);
     float3 p_prev = p;
-    float diskOuterApprox = max(M * u.diskSize, isco * 1.1);
-    float farFieldR = max(diskOuterApprox * 1.5, rph * 5.0);
 
-    for (int i = 0; i < maxSteps && !hitHorizon; ++i) {
+    for (int i = 0; i < maxSteps; ++i) {
         p_prev = p;
         float r = length(p);
-        if (r < rh * HORIZON_THRESHOLD) { hitHorizon = true; break; }
-        if (r > MAX_DIST) break;
-
-        if (r > farFieldR) {
-            if (r > diskOuterApprox * 2.0 && dot(p, v) > 0.0) break;
-            p += v * (MAX_STEP * 4.0);
-            continue;
-        }
+        rmin = min(rmin, r);
+        if (r < rh * HORIZON_THRESHOLD) { hit = true; break; }
+        if (r > R * 1.001 && dot(p, v) > 0.0) { escaped = true; break; }
 
         float distFactor = 1.0 + r * 0.05;
         float dt = clamp((r - rh) * 0.1 * distFactor, MIN_STEP, MAX_STEP * distFactor);
-        if (r > 30.0) {
-            float farBoost = (r - 30.0) * 0.08;
-            dt = max(dt, MIN_STEP + farBoost);
-            dt = min(dt, MAX_STEP * 2.5);
-        }
-        float sphereProx = abs(r - rph);
-        dt = min(dt, MIN_STEP + sphereProx * 0.15);
-        float hRefine = smoothstep(0.2, 0.0, abs(p.y));
-        float currentDt = dt * (1.0 - hRefine * 0.7);
+        if (r > 30.0) dt = min(max(dt, MIN_STEP + (r - 30.0) * 0.08), MAX_STEP * 2.5);
+        dt = min(dt, 0.03 + abs(r - rph) * 0.2);
+        dt *= (1.0 - smoothstep(0.2, 0.0, abs(p.y)) * 0.5);
 
         float3 accel = float3(0.0);
-        float omega = 0.0;
-        if (u.enableLensing != 0) {
+        if (lens > 0.0) {
             KerrAccel kA = kerr_accel(p, v, M, a);
-            accel = kA.accel * u.lensingStrength;
-            omega = kA.omega * u.frameDragStrength;
-            float2x2 zamo = rot(omega * currentDt);
-            float2 xz = zamo * float2(v.x, v.z);
+            accel = kA.accel * lens;
+            float2 xz = rot(kA.omega * s.b.w * dt) * v.xz;
             v.x = xz.x; v.z = xz.y;
         }
-
-        p += v * currentDt + 0.5 * accel * currentDt * currentDt;
-        float r_new = length(p);
-        if (u.enableLensing != 0 && alpha < 0.95) {
+        p += v * dt + 0.5 * accel * dt * dt;
+        if (lens > 0.0 && alpha < 0.95) {
             KerrAccel kB = kerr_accel(p, v, M, a);
-            float3 accelNew = kB.accel * u.lensingStrength;
-            v += 0.5 * (accel + accelNew) * currentDt;
+            v += 0.5 * (accel + kB.accel * lens) * dt;
         }
         v = normalize(v);
 
-        if (prevY * p.y < 0.0 && r_new < rph * 2.0 && r_new > rh) {
-            photonCrossings = min(photonCrossings + 1, 3);
-        }
-        prevY = p.y;
-
-        if (u.enableDisk != 0) {
-            acc += sample_disk(p, p_prev, v, length(p), isco, M, a, currentDt, u, alpha);
-        }
+        if (flags & F_DISK) acc += sample_disk(p, p_prev, v, isco, M, a, dt, s, flags, alpha);
+        if (flags & F_JETS) acc += sample_jet(p, v, rh, R, dt, s.b.x, alpha);
         if (alpha > 0.99) break;
     }
 
-    float3 background = float3(0.0);
-    if (u.enableStars != 0 && !hitHorizon) background = starfield(v, u.time);
-
-    float3 photon = float3(0.0);
-    if (u.enablePhotonGlow != 0 && !hitHorizon) {
-        float distToRing = abs(length(p) - rph);
-        float directRing = exp(-distToRing * 40.0) * 1.8 * u.lensingStrength;
-        float higherOrderRing = 0.0;
-        if (photonCrossings > 0) {
-            float ringSharpness = 60.0 + float(photonCrossings) * 30.0;
-            float ringBrightness = exp(-float(photonCrossings)) * 1.2;
-            higherOrderRing = exp(-distToRing * ringSharpness) * ringBrightness * u.lensingStrength;
-        }
-        photon = float3(1.0) * (directRing + higherOrderRing);
+    // Out of steps before leaving the sphere: a ray still heading inwards, or one
+    // circling inside the photon region, is captured; one already climbing out
+    // keeps its current direction.
+    if (!hit && !escaped && alpha < 0.99) {
+        float rEnd = length(p);
+        if (rEnd < rph * 1.6 || dot(p, v) < 0.0) hit = true;
     }
 
-    if (hitHorizon) background = float3(0.0);
+    if (!hit && (flags & F_PHOTON) && lens > 0.0) {
+        float d = max(0.0, rmin - rph);
+        float ring = exp(-d / (0.10 * M)) * 0.9 + exp(-d / (0.025 * M)) * 1.8;
+        float3 ringCol = float3(1.0, 0.86, 0.66) * ring * min(lens, 1.5) * (1.0 - alpha);
+        acc += ringCol;
+        alpha = saturate(alpha + min(ring * 0.3, 0.5) * (1.0 - alpha));
+    }
 
-    float3 col = background * (1.0 - alpha) + acc + photon * (1.0 - alpha);
-    col = col / (col + float3(1.0));   // Reinhard
-    col = pow(max(col, 0.0), float3(1.0 / 2.2));
-    return float4(col, 1.0);
+    if (hit) {
+        alpha = 1.0;
+        o.dir = float4(ray.wd, 0.0);
+    } else {
+        // Bending still to come between the sphere and infinity.
+        float sOut = dot(p, v);
+        float3 vOut = bend(p, v, sOut, 1e6, M, lens);
+        float3 wd = normalize((s.worldFromBH * float4(vOut, 0.0)).xyz);
+        o.dir = float4(wd, 1.0);
+    }
+    o.color = float4(acc, alpha);
+    return o;
+}
+
+// ---------- Pass B: composite into the drawable ----------
+
+struct CompOut {
+    float4 color [[color(0)]];
+    float  depth [[depth(any)]];
+};
+
+fragment CompOut bh_composite_fs(VSOut in [[stage_in]],
+                                 constant ImmEye& e [[buffer(0)]],
+                                 constant ImmScene& s [[buffer(1)]],
+                                 texture2d<float> colA [[texture(0)]],
+                                 texture2d<float> dirA [[texture(1)]])
+{
+    constexpr sampler lin(filter::linear, address::clamp_to_edge);
+    float2 uv = float2(in.ndc.x * 0.5 + 0.5, 0.5 - in.ndc.y * 0.5) * e.misc.zw;
+    float4 c = colA.sample(lin, uv);
+    bool full = s.d.y > 0.5;
+    uint flags = uint(s.d.z);
+
+    float3 col = c.rgb;
+    float alpha = c.a;
+
+    if (full) {
+        float3 sk = float3(0.0);
+        if (flags & F_STARS) {
+            float4 dA = dirA.sample(lin, uv);
+            Ray ray = eyeRay(in.ndc, e, s);
+            float3 dir = ray.wd;
+            float lens = (flags & F_LENS) ? s.b.z : 0.0;
+            if (lens > 0.0) {
+                // Outside the integrated sphere: straight-line weak-field bending.
+                float s0 = dot(ray.ro, ray.rd);
+                float3 vb = bend(ray.ro, ray.rd, s0, 1e6, s.a.y, lens);
+                float3 analytic = normalize((s.worldFromBH * float4(vb, 0.0)).xyz);
+                float w = saturate(dA.w);
+                float3 marched = (w > 1e-3) ? dA.xyz / w : analytic;
+                dir = normalize(mix(analytic, marched, w));
+            }
+            sk = sky(dir, s.b.x) * s.d.w;
+        }
+        col = sk * (1.0 - alpha) + col;
+        alpha = 1.0;
+    }
+
+    col = col / (col + 1.0);                       // Reinhard, premultiplied stays premultiplied
+    if (!full) {
+        // Over a lit room a glowing, half-transparent disk washes out; let its
+        // own brightness make it more opaque so it reads like it does in space.
+        float lum = dot(col, float3(0.2126, 0.7152, 0.0722));
+        alpha = saturate(max(alpha * 1.6, lum * 2.2));
+    }
+    if (e.misc.y > 0.5) col = pow(max(col, 0.0), float3(1.0 / 2.2));
+
+    CompOut o;
+    o.color = float4(col, alpha);
+    // Reverse-Z: 0 is infinitely far. Covered pixels sit at the black hole's centre.
+    o.depth = (c.a > 0.01) ? e.misc.x : 0.0;
+    return o;
 }

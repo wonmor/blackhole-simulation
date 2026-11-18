@@ -89,36 +89,42 @@ targets:
     sources:
       - path: BlackHole
         excludes:
+          # The windowed MTKView renderer, the iPhone/Mac layout and its
+          # overlays; Vision Pro renders through CompositorServices instead.
           - "MetalView.swift"
           - "ContentView.swift"
+          - "HUDView.swift"
+          - "WelcomeSheet.swift"
+          - "Renderer/**"
           # iOS-style .appiconset can't be compiled for the vision idiom;
-          # the visionOS target ships its own .solidimagestack catalog under
-          # BlackHole-visionOS/Assets.xcassets.
+          # the visionOS target ships its own solidimagestack catalog.
           - "Assets.xcassets"
       - path: BlackHole-visionOS
     info:
       path: BlackHole-visionOS/Info.plist
       properties:
-        CFBundleDisplayName: BlackHole
+        CFBundleDisplayName: iBlackHole
         CFBundleShortVersionString: "1.0.0"
-        CFBundleVersion: "2"
+        CFBundleVersion: "8"
         ITSAppUsesNonExemptEncryption: false
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
-        NSWorldSensingUsageDescription: "BlackHole uses head tracking so the simulation responds to your viewpoint."
+          UIApplicationPreferredDefaultSceneSessionRole: UIWindowSceneSessionRoleApplication
+        NSWorldSensingUsageDescription: "iBlackHole uses your head position to keep the black hole fixed in your room while you walk around it."
+    scheme:
+      storeKitConfiguration: BlackHole.storekit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.orchestrsim.blackholesim
         PRODUCT_NAME: BlackHole
+        CURRENT_PROJECT_VERSION: "8"
         TARGETED_DEVICE_FAMILY: "7"
+        SUPPORTED_PLATFORMS: "xros xrsimulator"
         GENERATE_INFOPLIST_FILE: NO
         MTL_ENABLE_DEBUG_INFO: INCLUDE_SOURCE
         MTL_FAST_MATH: YES
         SWIFT_OBJC_BRIDGING_HEADER: BlackHole/Shared/BlackHole-Bridging-Header.h
-        # visionOS icon deferred — Xcode 26.4 invokes the iOS asset tool
-        # (IBCocoaTouchPlatformTool) on visionOS assets which always fails
-        # validation. Tracking; will fix once Apple ships the right tooling
-        # or we figure out the SDK override.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 
   BlackHole-macOS:
     type: application

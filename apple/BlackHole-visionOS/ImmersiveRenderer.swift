@@ -2,110 +2,182 @@ import Foundation
 import Metal
 import CompositorServices
 import ARKit
+import SwiftUI
+import Spatial
 import simd
 import QuartzCore
 
-/// Stereo-renders the Kerr black hole into both eyes of the Vision Pro.
+/// Stereo-renders the Kerr black hole for Apple Vision Pro.
 ///
-/// Per-eye separate render passes (NOT vertex amplification) — visionOS
-/// simulator doesn't support amplification, and a sequential per-eye loop
-/// runs fine on real device too. Roughly 2× the cost of an amplified path
-/// at 90 Hz; acceptable for v1.
-final class ImmersiveRenderer {
+/// Per eye: pass A integrates geodesics through the black hole's bounding sphere
+/// into a reduced-resolution offscreen target; pass B upsamples it into the
+/// Compositor drawable with the system foveation map, adds the lensed sky in
+/// full immersion and writes depth. A GPU-time governor scales pass A's
+/// resolution and step budget so the frame stays inside the 90 Hz budget.
+final class ImmersiveRenderer: @unchecked Sendable {
 
     private let layerRenderer: LayerRenderer
     private let device: MTLDevice
-    private let commandQueue: MTLCommandQueue
+    private let queue: MTLCommandQueue
     private let library: MTLLibrary
-    private var pipelineState: MTLRenderPipelineState!
+    private var marchPipeline: MTLRenderPipelineState?
+    private var compositePipeline: MTLRenderPipelineState?
+    private let depthState: MTLDepthStencilState
 
     private let arSession = ARKitSession()
     private let worldTracking = WorldTrackingProvider()
 
     private weak var params: BlackHoleParameters?
-    private let startTime = CFAbsoluteTimeGetCurrent()
-    private var frameIndex: Int32 = 0
+    private let control = ImmersiveController.shared
+    private let startTime = CACurrentMediaTime()
+    private let frameSemaphore = DispatchSemaphore(value: 3)
 
-    /// Black hole sits this many meters in front of the user. The user is
-    /// free to walk around it (head tracking provides parallax).
-    private let blackHoleAnchorDistance: Float = 3.0
+    // Offscreen pass-A targets, one pair per view.
+    private var colorTargets: [MTLTexture] = []
+    private var dirTargets: [MTLTexture] = []
+    private let maxScale: Float = 1.0
+
+    // Governor (GPU milliseconds, exponential moving average).
+    private var gpuMs: Double = 6
+    private var scale: Float = 0.7
+    private var stepFactor: Float = 1.0
+    private let gpuLock = NSLock()
+    private var lastGpu: Double = 6
+
+    // FPS bookkeeping.
+    private var fpsFrames = 0
+    private var fpsStart = CACurrentMediaTime()
+    private var fpsLog: [Double] = []
+    private let logFPS = UserDefaults.standard.bool(forKey: "bhFpsLog")
+
+    // Placement of the black hole in the immersive space.
+    private var center = SIMD3<Float>(0, 1.35, -1.4)
+    private var forward = SIMD3<Float>(0, 0, -1)
+    private var placed = false
+
+    // Spatial gesture tracking (main actor).
+    private var touches: [SpatialEventCollection.Event.ID: SIMD3<Float>] = [:]
+    private var pinchStartDist: Float = 0
+    private var pinchStartSize: Float = 1
 
     init(layerRenderer: LayerRenderer, params: BlackHoleParameters) {
         self.layerRenderer = layerRenderer
         self.params = params
         self.device = layerRenderer.device
-        guard let q = device.makeCommandQueue() else {
-            fatalError("CompositorServices: command queue unavailable.")
-        }
-        self.commandQueue = q
-        guard let lib = device.makeDefaultLibrary() else {
-            fatalError("CompositorServices: default Metal library unavailable.")
-        }
-        self.library = lib
-
-        // Pipeline is built lazily in renderFrame using the *actual* drawable
-        // texture format so the descriptor matches whatever Compositor chose
-        // for this device/sim. Building eagerly with `layerRenderer.configuration.colorFormat`
-        // tripped a hard validation assert in the simulator.
+        self.queue = device.makeCommandQueue()!
+        self.library = device.makeDefaultLibrary()!
+        let ds = MTLDepthStencilDescriptor()
+        ds.depthCompareFunction = .always
+        ds.isDepthWriteEnabled = true
+        self.depthState = device.makeDepthStencilState(descriptor: ds)!
         Task { try? await arSession.run([worldTracking]) }
     }
 
-    private func ensurePipeline(for drawable: LayerRenderer.Drawable) {
-        if pipelineState != nil { return }
-        guard let vfn = library.makeFunction(name: "immersive_vs"),
-              let ffn = library.makeFunction(name: "immersive_fs") else {
-            fatalError("CompositorServices: missing immersive shaders.")
-        }
+    // MARK: - Gestures
 
-        // Diagnostic: log every value we're feeding the pipeline descriptor.
-        // Visible in `xcrun simctl spawn ... log show --predicate ...`.
-        let colorFmt = drawable.colorTextures[0].pixelFormat
-        let depthFmt = drawable.depthTextures[0].pixelFormat
-        let samples = drawable.colorTextures[0].sampleCount
-        let viewCount = layerRenderer.properties.viewCount
-        NSLog("BH PIPELINE: color=\(colorFmt.rawValue) depth=\(depthFmt.rawValue) samples=\(samples) viewCount=\(viewCount)")
-
-        let desc = MTLRenderPipelineDescriptor()
-        desc.label = "Immersive Black Hole"
-        desc.vertexFunction = vfn
-        desc.fragmentFunction = ffn
-        desc.colorAttachments[0].pixelFormat = colorFmt
-        desc.colorAttachments[0].writeMask = .all
-        desc.depthAttachmentPixelFormat = depthFmt
-        if depthFmt == .depth32Float_stencil8 || depthFmt == .x32_stencil8 {
-            desc.stencilAttachmentPixelFormat = depthFmt
-        }
-        desc.rasterSampleCount = samples
-        // CompositorServices pipelines must declare amplification count ==
-        // properties.viewCount even when each eye is rendered in its own pass
-        // — Metal's validator otherwise refuses the descriptor on visionOS.
-        desc.maxVertexAmplificationCount = viewCount
-
-        do {
-            self.pipelineState = try device.makeRenderPipelineState(descriptor: desc)
-            NSLog("BH PIPELINE: built successfully")
-        } catch {
-            fatalError("CompositorServices: pipeline build failed: \(error)")
+    /// Pinch and drag orbits the black hole; pinching with both hands and
+    /// pulling them apart scales it. Called on the main actor.
+    @MainActor
+    func handle(_ events: SpatialEventCollection) {
+        for e in events {
+            let p = e.inputDevicePose?.pose3D.position ?? e.location3D
+            var pos = SIMD3<Float>(Float(p.x), Float(p.y), Float(p.z))
+            // Compositor events arrive in metres; guard against point units.
+            if simd_length(pos) > 30 { pos /= 1360 }
+            switch e.phase {
+            case .active:
+                if let prev = touches[e.id] {
+                    if touches.count == 1 {
+                        let d = pos - prev
+                        let right = simd_normalize(simd_cross(forward, SIMD3<Float>(0, 1, 0)))
+                        control.orbit(dYaw: simd_dot(d, right) * 4.0, dTilt: -d.y * 4.0)
+                    }
+                } else if touches.count == 1 {
+                    // Second hand joined: start a two-hand magnify.
+                    let other = touches.values.first!
+                    pinchStartDist = max(simd_distance(other, pos), 0.02)
+                    pinchStartSize = control.size
+                }
+                touches[e.id] = pos
+                if touches.count == 2 {
+                    let v = Array(touches.values)
+                    let dist = simd_distance(v[0], v[1])
+                    control.size = pinchStartSize * dist / pinchStartDist
+                }
+            case .ended, .cancelled:
+                touches[e.id] = nil
+            @unknown default:
+                touches[e.id] = nil
+            }
         }
     }
 
-    // MARK: - Render loop
+    // MARK: - Pipelines
+
+    private func buildPipelines(_ drawable: LayerRenderer.Drawable) {
+        guard compositePipeline == nil else { return }
+        let vs = library.makeFunction(name: "imm_vs")
+
+        let a = MTLRenderPipelineDescriptor()
+        a.label = "BH march"
+        a.vertexFunction = vs
+        a.fragmentFunction = library.makeFunction(name: "bh_march_fs")
+        a.colorAttachments[0].pixelFormat = .rgba16Float
+        a.colorAttachments[1].pixelFormat = .rgba16Float
+        marchPipeline = try? device.makeRenderPipelineState(descriptor: a)
+
+        let b = MTLRenderPipelineDescriptor()
+        b.label = "BH composite"
+        b.vertexFunction = vs
+        b.fragmentFunction = library.makeFunction(name: "bh_composite_fs")
+        b.colorAttachments[0].pixelFormat = drawable.colorTextures[0].pixelFormat
+        b.depthAttachmentPixelFormat = drawable.depthTextures[0].pixelFormat
+        b.rasterSampleCount = drawable.colorTextures[0].sampleCount
+        b.maxVertexAmplificationCount = layerRenderer.properties.viewCount
+        do { compositePipeline = try device.makeRenderPipelineState(descriptor: b) }
+        catch { NSLog("BH composite pipeline failed: \(error)") }
+    }
+
+    private func ensureTargets(count: Int, size: MTLSize) {
+        let w = Int((Float(size.width) * maxScale).rounded(.up))
+        let h = Int((Float(size.height) * maxScale).rounded(.up))
+        if colorTargets.count == count, let t = colorTargets.first, t.width == w, t.height == h { return }
+        colorTargets = []; dirTargets = []
+        let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: w, height: h, mipmapped: false)
+        d.usage = [.renderTarget, .shaderRead]
+        d.storageMode = .private
+        for _ in 0..<count {
+            colorTargets.append(device.makeTexture(descriptor: d)!)
+            dirTargets.append(device.makeTexture(descriptor: d)!)
+        }
+    }
+
+    // MARK: - Loop
 
     func startRenderLoop() {
-        Task.detached(priority: .userInitiated) { [weak self] in
-            await self?.renderLoop()
+        Task { @MainActor in
+            layerRenderer.onSpatialEvent = { [weak self] events in self?.handle(events) }
         }
+        control.setOpen(true)
+        let thread = Thread { [self] in
+            self.renderLoop()
+        }
+        thread.name = "BlackHole render"
+        thread.qualityOfService = .userInteractive
+        thread.start()
     }
 
-    private func renderLoop() async {
+    private func renderLoop() {
         while true {
             switch layerRenderer.state {
             case .paused:
                 layerRenderer.waitUntilRunning()
             case .running:
-                guard let frame = layerRenderer.queryNextFrame() else { continue }
-                renderFrame(frame: frame)
+                autoreleasepool {
+                    if let frame = layerRenderer.queryNextFrame() { renderFrame(frame) }
+                }
             case .invalidated:
+                control.setOpen(false)
                 return
             @unknown default:
                 continue
@@ -113,134 +185,269 @@ final class ImmersiveRenderer {
         }
     }
 
-    private func renderFrame(frame: LayerRenderer.Frame) {
+    private func renderFrame(_ frame: LayerRenderer.Frame) {
         frame.startUpdate()
+        let snap = control.takeSnapshot()
         frame.endUpdate()
 
         guard let timing = frame.predictTiming() else { return }
         LayerRenderer.Clock().wait(until: timing.optimalInputTime)
+        frameSemaphore.wait()
 
         frame.startSubmission()
-        defer { frame.endSubmission() }
+        guard let drawable = frame.queryDrawable() else {
+            frame.endSubmission(); frameSemaphore.signal(); return
+        }
+        buildPipelines(drawable)
 
-        guard let drawable = frame.queryDrawable() else { return }
-        ensurePipeline(for: drawable)
+        let dur = LayerRenderer.Clock.Instant.epoch.duration(to: timing.presentationTime)
+        let t = Double(dur.components.seconds) + Double(dur.components.attoseconds) * 1e-18
+        let anchor = worldTracking.queryDeviceAnchor(atTimestamp: t)
+        drawable.deviceAnchor = anchor
+        let head = anchor?.originFromAnchorTransform ?? matrix_identity_float4x4
 
-        let predictedTime = CACurrentMediaTime() + 1.0 / 90.0
-        let deviceAnchor = worldTracking.queryDeviceAnchor(atTimestamp: predictedTime)
-        drawable.deviceAnchor = deviceAnchor
-
-        guard let cb = commandQueue.makeCommandBuffer() else { return }
-        cb.label = "Immersive frame \(frameIndex)"
-
-        let headTransform = deviceAnchor?.originFromAnchorTransform ?? matrix_identity_float4x4
-
-        // One render pass per eye. drawable.colorTextures may be a single
-        // array texture (slice per eye) or one texture per eye — `view.textureMap`
-        // tells us which slice/viewport this view belongs in either case.
-        for (idx, view) in drawable.views.enumerated() {
-            let renderPass = MTLRenderPassDescriptor()
-            // Pick the texture corresponding to this view. With separate-texture
-            // mode (sim) we have one per index; with array-texture mode (device)
-            // they're all slices of textures[0].
-            let colorTex = drawable.colorTextures.count > idx
-                ? drawable.colorTextures[idx]
-                : drawable.colorTextures[0]
-            let depthTex = drawable.depthTextures.count > idx
-                ? drawable.depthTextures[idx]
-                : drawable.depthTextures[0]
-            renderPass.colorAttachments[0].texture = colorTex
-            renderPass.colorAttachments[0].slice = view.textureMap.sliceIndex
-            renderPass.colorAttachments[0].loadAction = .clear
-            renderPass.colorAttachments[0].storeAction = .store
-            renderPass.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
-            renderPass.depthAttachment.texture = depthTex
-            renderPass.depthAttachment.slice = view.textureMap.sliceIndex
-            renderPass.depthAttachment.loadAction = .clear
-            renderPass.depthAttachment.storeAction = .store
-            renderPass.depthAttachment.clearDepth = 1.0
-            renderPass.rasterizationRateMap = idx < drawable.rasterizationRateMaps.count
-                ? drawable.rasterizationRateMaps[idx] : nil
-
-            guard let encoder = cb.makeRenderCommandEncoder(descriptor: renderPass) else { continue }
-            encoder.label = "Immersive eye \(idx)"
-            encoder.setRenderPipelineState(pipelineState)
-            encoder.setViewport(view.textureMap.viewport)
-
-            var eye = makeSingleEyeUniforms(view: view, headTransform: headTransform)
-            encoder.setVertexBytes(&eye, length: MemoryLayout<SingleEyeUniforms>.stride, index: 0)
-            encoder.setFragmentBytes(&eye, length: MemoryLayout<SingleEyeUniforms>.stride, index: 0)
-
-            var bh = makeBlackHoleUniforms()
-            encoder.setFragmentBytes(&bh, length: MemoryLayout<BHUniforms>.stride, index: 1)
-
-            encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
-            encoder.endEncoding()
+        if (!placed && anchor != nil) || snap.recenter {
+            place(head: anchor != nil ? head : nil)
         }
 
+        guard let cb = queue.makeCommandBuffer(),
+              let march = marchPipeline, let comp = compositePipeline else {
+            frame.endSubmission(); frameSemaphore.signal(); return
+        }
+
+        let viewCount = drawable.views.count
+        let screen: MTLSize = drawable.rasterizationRateMaps.first?.screenSize
+            ?? MTLSize(width: drawable.colorTextures[0].width, height: drawable.colorTextures[0].height, depth: 1)
+        ensureTargets(count: viewCount, size: screen)
+
+        var scene = makeScene(snap)
+        let s = scale
+        let vpW = Double(Float(screen.width) * s).rounded(), vpH = Double(Float(screen.height) * s).rounded()
+        let texW = Double(colorTargets[0].width), texH = Double(colorTargets[0].height)
+        let encodeGamma: Float = Self.needsGamma(drawable.colorTextures[0].pixelFormat) ? 1 : 0
+
+        for (i, view) in drawable.views.enumerated() {
+            let proj = drawable.computeProjection(convention: .rightUpBack, viewIndex: i)
+            let worldFromView = head * view.transform
+            let viewFromWorld = worldFromView.inverse
+            let c = proj * viewFromWorld * SIMD4<Float>(center, 1)
+            let centreDepth = c.w > 0 ? min(max(c.z / c.w, 0), 1) : 0
+
+            var eye = ImmEye(viewFromClip: proj.inverse, worldFromView: worldFromView,
+                             misc: SIMD4<Float>(centreDepth, encodeGamma, Float(vpW / texW), Float(vpH / texH)))
+
+            // Pass A
+            let pa = MTLRenderPassDescriptor()
+            pa.colorAttachments[0].texture = colorTargets[i]
+            pa.colorAttachments[0].loadAction = .clear
+            pa.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
+            pa.colorAttachments[0].storeAction = .store
+            pa.colorAttachments[1].texture = dirTargets[i]
+            pa.colorAttachments[1].loadAction = .clear
+            pa.colorAttachments[1].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
+            pa.colorAttachments[1].storeAction = .store
+            if let enc = cb.makeRenderCommandEncoder(descriptor: pa) {
+                enc.label = "march eye \(i)"
+                enc.setRenderPipelineState(march)
+                enc.setViewport(MTLViewport(originX: 0, originY: 0, width: vpW, height: vpH, znear: 0, zfar: 1))
+                enc.setFragmentBytes(&eye, length: MemoryLayout<ImmEye>.stride, index: 0)
+                enc.setFragmentBytes(&scene, length: MemoryLayout<ImmScene>.stride, index: 1)
+                enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+                enc.endEncoding()
+            }
+
+            // Pass B
+            let pb = MTLRenderPassDescriptor()
+            pb.colorAttachments[0].texture = drawable.colorTextures.count > i ? drawable.colorTextures[i] : drawable.colorTextures[0]
+            pb.colorAttachments[0].slice = view.textureMap.sliceIndex
+            pb.colorAttachments[0].loadAction = .clear
+            pb.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
+            pb.colorAttachments[0].storeAction = .store
+            pb.depthAttachment.texture = drawable.depthTextures.count > i ? drawable.depthTextures[i] : drawable.depthTextures[0]
+            pb.depthAttachment.slice = view.textureMap.sliceIndex
+            pb.depthAttachment.loadAction = .clear
+            pb.depthAttachment.clearDepth = 0
+            pb.depthAttachment.storeAction = .store
+            if i < drawable.rasterizationRateMaps.count {
+                pb.rasterizationRateMap = drawable.rasterizationRateMaps[i]
+            }
+            if let enc = cb.makeRenderCommandEncoder(descriptor: pb) {
+                enc.label = "composite eye \(i)"
+                enc.setRenderPipelineState(comp)
+                enc.setDepthStencilState(depthState)
+                enc.setViewport(view.textureMap.viewport)
+                enc.setFragmentBytes(&eye, length: MemoryLayout<ImmEye>.stride, index: 0)
+                enc.setFragmentBytes(&scene, length: MemoryLayout<ImmScene>.stride, index: 1)
+                enc.setFragmentTexture(colorTargets[i], index: 0)
+                enc.setFragmentTexture(dirTargets[i], index: 1)
+                enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+                enc.endEncoding()
+            }
+        }
+
+        let sem = frameSemaphore
+        cb.addCompletedHandler { [weak self] buf in
+            let ms = (buf.gpuEndTime - buf.gpuStartTime) * 1000
+            if let self, ms > 0 {
+                self.gpuLock.lock(); self.lastGpu = ms; self.gpuLock.unlock()
+            }
+            sem.signal()
+        }
         drawable.encodePresent(commandBuffer: cb)
         cb.commit()
+        frame.endSubmission()
 
-        frameIndex &+= 1
+        govern()
     }
 
-    // MARK: - Uniform composition
+    // MARK: - Placement and scene
 
-    private func makeSingleEyeUniforms(view: LayerRenderer.Drawable.View,
-                                       headTransform: simd_float4x4) -> SingleEyeUniforms {
-        // visionOS gives us "world from view" (the eye's transform relative
-        // to the head). Combine with head world transform to get eye world.
-        let eyeWorldFromView = headTransform * view.transform
-        let t = view.tangents
-        var u = SingleEyeUniforms()
-        u.eyeWorldFromView = eyeWorldFromView
-        u.tangents = simd_float4(t.x, t.y, t.z, t.w)
-        u.blackHolePosition = simd_float3(0, 0, -blackHoleAnchorDistance)
-        return u
+    private func place(head: simd_float4x4?) {
+        guard let head else {
+            center = SIMD3<Float>(0, 1.35, -1.4); forward = SIMD3<Float>(0, 0, -1)
+            placed = true; return
+        }
+        let pos = SIMD3<Float>(head.columns.3.x, head.columns.3.y, head.columns.3.z)
+        var f = -SIMD3<Float>(head.columns.2.x, 0, head.columns.2.z)
+        if simd_length(f) < 1e-3 { f = SIMD3<Float>(0, 0, -1) }
+        f = simd_normalize(f)
+        forward = f
+        center = pos + f * 1.35 + SIMD3<Float>(0, -0.08, 0)
+        placed = true
     }
 
-    private func makeBlackHoleUniforms() -> BHUniforms {
-        let p = params ?? BlackHoleParameters()
-        var u = BHUniforms()
-        u.resolution = simd_float2(2048, 2048)
-        u.time = Float(CFAbsoluteTimeGetCurrent() - startTime)
-        u.diskTime = u.time * max(0, p.diskSpeed)
-        u.mass = p.mass
-        u.spin = p.spin
-        u.diskDensity = p.diskDensity
-        u.diskTemp = p.diskTemp
-        u.zoom = p.zoom
-        u.mouse = simd_float2(0.5, 0.539)
-        u.lensingStrength = p.lensingStrength
-        u.diskSize = p.diskSize
-        u.maxRaySteps = Int32(p.preset.maxRaySteps)
-        u.enableDoppler = p.enableDoppler ? 1 : 0
-        u.enableJets = p.enableJets ? 1 : 0
-        u.enableLensing = p.enableLensing ? 1 : 0
-        u.enableDisk = p.enableDisk ? 1 : 0
-        u.enableStars = p.enableStars ? 1 : 0
-        u.enablePhotonGlow = p.enablePhotonGlow ? 1 : 0
-        u.enableRedshiftView = 0
-        u.jitter = simd_float2(0, 0)
-        u.diskScaleHeight = p.diskScaleHeight
-        u.bloomThreshold = p.bloomThreshold
-        u.bloomIntensity = p.bloomIntensity
-        u.taaFeedback = 0
-        u.frameDragStrength = p.frameDragStrength
-        u.frameIndex = frameIndex
-        return u
+    private func makeScene(_ snap: ImmersiveController.Snapshot) -> ImmScene {
+        let p = params
+        let spin = max(-0.9999, min(0.9999, p?.spin ?? 0.5))
+        // The shader's lensing model gives a shadow of about 7.5 M x lensing
+        // strength (5.2 M, the Schwarzschild value, at the default 0.7). Keep the
+        // disk reaching well past it so strong-lensing scenarios still show a disk.
+        let lensing = (p?.enableLensing ?? true) ? (p?.lensingStrength ?? 0.7) : 0
+        let diskEff = max(8, min(30, (p?.diskSize ?? 50) * 0.4), 7.5 * max(lensing, 0.5) * 2.4)
+        let R = max(diskEff * 1.2, 16)
+        // Disk's outer edge is 0.55 m from the centre at size 1.
+        let unitsPerMetre = diskEff / (0.55 * snap.size)
+
+        let pitch = p?.pitch ?? 0.539
+        let tilt = (pitch - 0.5) * .pi + snap.tilt
+        let f = forward
+        let right = simd_normalize(simd_cross(f, SIMD3<Float>(0, 1, 0)))
+        let back = -f
+        let basis = simd_float4x4(SIMD4<Float>(right, 0), SIMD4<Float>(0, 1, 0, 0), SIMD4<Float>(back, 0), SIMD4<Float>(center, 1))
+        let worldFromBH = basis * Self.rotX(tilt) * Self.rotY(snap.yaw)
+
+        var flags: UInt32 = 0
+        if p?.enableLensing ?? true { flags |= 1 }
+        if p?.enableDisk ?? true { flags |= 2 }
+        if p?.enableDoppler ?? true { flags |= 4 }
+        if p?.enablePhotonGlow ?? true { flags |= 8 }
+        if p?.enableStars ?? true { flags |= 16 }
+        if p?.enableJets ?? false { flags |= 32 }
+
+        let time = Float(CACurrentMediaTime() - startTime)
+        let steps = Float(Self.steps(for: p?.preset ?? .high)) * stepFactor
+
+        return ImmScene(
+            bhFromWorld: worldFromBH.inverse,
+            worldFromBH: worldFromBH,
+            a: SIMD4<Float>(unitsPerMetre, 1.0, spin, R),
+            b: SIMD4<Float>(time, time * max(0, p?.diskSpeed ?? 1), p?.lensingStrength ?? 0.7, p?.frameDragStrength ?? 2),
+            c: SIMD4<Float>(p?.diskDensity ?? 4, p?.diskTemp ?? 9500, diskEff, p?.diskScaleHeight ?? 0.2),
+            d: SIMD4<Float>(max(32, steps), snap.mode == .space ? 1 : 0, Float(flags), 1.0))
+    }
+
+    /// Geodesic step budget per quality preset (Ultra and Cinematic are Pro).
+    static func steps(for preset: QualityPreset) -> Int {
+        switch preset {
+        case .low: return 110
+        case .medium: return 140
+        case .high: return 180
+        case .ultra: return 240
+        case .cinematic: return 320
+        }
+    }
+
+    /// Upper bound of pass A's resolution per preset.
+    static func maxScale(for preset: QualityPreset) -> Float {
+        switch preset {
+        case .low: return 0.55
+        case .medium: return 0.65
+        case .high: return 0.75
+        case .ultra: return 0.85
+        case .cinematic: return 1.0
+        }
+    }
+
+    /// Keeps GPU time per frame under ~8.5 ms (90 Hz leaves 11.1 ms).
+    private func govern() {
+        gpuLock.lock(); let ms = lastGpu; gpuLock.unlock()
+        gpuMs = gpuMs * 0.9 + ms * 0.1
+        let cap = Self.maxScale(for: params?.preset ?? .high)
+        if gpuMs > 8.5 {
+            if scale > 0.42 { scale = max(0.42, scale * 0.97) }
+            else { stepFactor = max(0.55, stepFactor * 0.97) }
+        } else if gpuMs < 6.0 {
+            if stepFactor < 1 { stepFactor = min(1, stepFactor * 1.02) }
+            else { scale = min(cap, scale * 1.01) }
+        }
+        scale = min(scale, cap)
+
+        fpsFrames += 1
+        let now = CACurrentMediaTime()
+        if now - fpsStart >= 1 {
+            let fps = Double(fpsFrames) / (now - fpsStart)
+            fpsFrames = 0; fpsStart = now
+            control.publish(fps: fps, scale: scale)
+            if logFPS {
+                fpsLog.append(fps)
+                Self.writeFPSLog(fpsLog, gpuMs: gpuMs, scale: scale, steps: stepFactor)
+            }
+        }
+    }
+
+    private static func writeFPSLog(_ log: [Double], gpuMs: Double, scale: Float, steps: Float) {
+        guard let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        let sorted = log.sorted()
+        let avg = log.reduce(0, +) / Double(max(log.count, 1))
+        let p5 = sorted.isEmpty ? 0 : sorted[Int(Double(sorted.count - 1) * 0.05)]
+        let obj: [String: Any] = ["seconds": log.count, "avg": avg, "p5": p5, "gpuMsEMA": gpuMs,
+                                  "passAScale": scale, "stepFactor": steps]
+        if let data = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]) {
+            try? data.write(to: dir.appendingPathComponent("fps.json"))
+        }
+    }
+
+    private static func needsGamma(_ f: MTLPixelFormat) -> Bool {
+        switch f {
+        case .bgra8Unorm, .rgba8Unorm, .bgr10a2Unorm, .rgb10a2Unorm: return true
+        default: return false
+        }
+    }
+
+    private static func rotX(_ a: Float) -> simd_float4x4 {
+        let c = cos(a), s = sin(a)
+        return simd_float4x4(SIMD4<Float>(1, 0, 0, 0), SIMD4<Float>(0, c, s, 0), SIMD4<Float>(0, -s, c, 0), SIMD4<Float>(0, 0, 0, 1))
+    }
+
+    private static func rotY(_ a: Float) -> simd_float4x4 {
+        let c = cos(a), s = sin(a)
+        return simd_float4x4(SIMD4<Float>(c, 0, -s, 0), SIMD4<Float>(0, 1, 0, 0), SIMD4<Float>(s, 0, c, 0), SIMD4<Float>(0, 0, 0, 1))
     }
 }
 
-// MARK: - Single-eye uniforms (Swift mirror — matches struct in MSL)
+// MARK: - Shader layouts (match ImmersiveScene.metal)
 
-struct SingleEyeUniforms {
-    /// World-from-view transform for this eye. Last column is camera world pos.
-    var eyeWorldFromView: simd_float4x4 = matrix_identity_float4x4
-    /// (left, right, top, bottom) tangents. Used to reconstruct view-space
-    /// ray direction from each pixel's NDC.
-    var tangents: simd_float4 = simd_float4(-1, 1, 1, -1)
-    /// World-space anchor where the black hole simulation lives.
-    var blackHolePosition: simd_float3 = .zero
-    var _pad0: Float = 0
+struct ImmEye {
+    var viewFromClip: simd_float4x4
+    var worldFromView: simd_float4x4
+    var misc: SIMD4<Float>
+}
+
+struct ImmScene {
+    var bhFromWorld: simd_float4x4
+    var worldFromBH: simd_float4x4
+    var a: SIMD4<Float>
+    var b: SIMD4<Float>
+    var c: SIMD4<Float>
+    var d: SIMD4<Float>
 }
