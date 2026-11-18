@@ -125,6 +125,10 @@ targets:
         MTL_FAST_MATH: YES
         SWIFT_OBJC_BRIDGING_HEADER: BlackHole/Shared/BlackHole-Bridging-Header.h
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      configs:
+        Release:
+          # Keeps shader source out of the store build (ASC warning on 1.0.0 (8)).
+          MTL_ENABLE_DEBUG_INFO: "NO"
 
   BlackHole-macOS:
     type: application
